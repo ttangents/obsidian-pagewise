@@ -9,8 +9,10 @@ import { isTableLine, parseTable, serializeTable, type TableModel } from "./tabl
  */
 
 export interface TableContext {
-  /** Column the cursor is in, clamped to the table's width. */
+  /** First column the cursor or selection touches, clamped to the table's width. */
   column: number;
+  /** Last column the selection touches; equals column when nothing is selected. */
+  columnEnd: number;
   /** Index into the body rows, or null when the cursor sits on the header or delimiter line. */
   bodyRow: number | null;
 }
@@ -35,15 +37,32 @@ export function locateTable(editor: Editor): LocatedTable | null {
   const model = parseTable(lines);
   if (!model) return null;
   const relative = cursor.line - startLine;
+  const from = clampToBlock(editor.getCursor("from"), startLine, endLine, editor);
+  const to = clampToBlock(editor.getCursor("to"), startLine, endLine, editor);
+  const columnFrom = columnAt(editor.getLine(from.line), from.ch, model.header.length);
+  const columnTo = columnAt(editor.getLine(to.line), to.ch, model.header.length);
   return {
     startLine,
     endLine,
     model,
     context: {
-      column: columnAt(editor.getLine(cursor.line), cursor.ch, model.header.length),
+      column: Math.min(columnFrom, columnTo),
+      columnEnd: Math.max(columnFrom, columnTo),
       bodyRow: relative >= 2 && relative - 2 < model.rows.length ? relative - 2 : null,
     },
   };
+}
+
+/** Clamps a selection endpoint into the table block; an outside endpoint snaps to the block's edge cell. */
+function clampToBlock(
+  pos: { line: number; ch: number },
+  startLine: number,
+  endLine: number,
+  editor: Editor
+): { line: number; ch: number } {
+  if (pos.line < startLine) return { line: startLine, ch: 0 };
+  if (pos.line > endLine) return { line: endLine, ch: editor.getLine(endLine).length };
+  return pos;
 }
 
 /**

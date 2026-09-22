@@ -311,7 +311,7 @@ export class NoteToolbar {
     const alignEntry = (title: string, icon: string[], alignment: ColumnAlignment): SubmenuEntry => ({
       title,
       icon,
-      action: edit((model, ctx) => setAlignment(model, ctx.column, alignment)),
+      action: edit((model, ctx) => setAlignment(model, ctx.column, ctx.columnEnd, alignment)),
     });
 
     menu.addItem((item) => {

@@ -51,10 +51,19 @@ export function serializeTable(model: TableModel): string[] {
   return [line(model.header), line(delimiter), ...model.rows.map((row) => line(normalizeRow(row, widths.length)))];
 }
 
-export function setAlignment(model: TableModel, column: number, alignment: ColumnAlignment): TableModel | null {
-  if (!validColumn(model, column)) return null;
-  const alignments = [...model.alignments];
-  alignments[column] = alignment;
+/** Sets the alignment of every column from startColumn to endColumn inclusive. */
+export function setAlignment(
+  model: TableModel,
+  startColumn: number,
+  endColumn: number,
+  alignment: ColumnAlignment
+): TableModel | null {
+  const start = Math.min(startColumn, endColumn);
+  const end = Math.max(startColumn, endColumn);
+  if (!validColumn(model, start) || !validColumn(model, end)) return null;
+  const alignments = model.alignments.map((existing, column) =>
+    column >= start && column <= end ? alignment : existing
+  );
   return { ...model, alignments };
 }
 

@@ -413,10 +413,13 @@ function serializeTable(model) {
   const delimiter = model.alignments.map((alignment, col) => delimiterCell(alignment, widths[col]));
   return [line(model.header), line(delimiter), ...model.rows.map((row) => line(normalizeRow(row, widths.length)))];
 }
-function setAlignment(model, column, alignment) {
-  if (!validColumn(model, column)) return null;
-  const alignments = [...model.alignments];
-  alignments[column] = alignment;
+function setAlignment(model, startColumn, endColumn, alignment) {
+  const start = Math.min(startColumn, endColumn);
+  const end = Math.max(startColumn, endColumn);
+  if (!validColumn(model, start) || !validColumn(model, end)) return null;
+  const alignments = model.alignments.map(
+    (existing, column) => column >= start && column <= end ? alignment : existing
+  );
   return { ...model, alignments };
 }
 function insertRow(model, index) {
@@ -581,15 +584,25 @@ function locateTable(editor) {
   const model = parseTable(lines);
   if (!model) return null;
   const relative = cursor.line - startLine;
+  const from = clampToBlock(editor.getCursor("from"), startLine, endLine, editor);
+  const to = clampToBlock(editor.getCursor("to"), startLine, endLine, editor);
+  const columnFrom = columnAt(editor.getLine(from.line), from.ch, model.header.length);
+  const columnTo = columnAt(editor.getLine(to.line), to.ch, model.header.length);
   return {
     startLine,
     endLine,
     model,
     context: {
-      column: columnAt(editor.getLine(cursor.line), cursor.ch, model.header.length),
+      column: Math.min(columnFrom, columnTo),
+      columnEnd: Math.max(columnFrom, columnTo),
       bodyRow: relative >= 2 && relative - 2 < model.rows.length ? relative - 2 : null
     }
   };
+}
+function clampToBlock(pos, startLine, endLine, editor) {
+  if (pos.line < startLine) return { line: startLine, ch: 0 };
+  if (pos.line > endLine) return { line: endLine, ch: editor.getLine(endLine).length };
+  return pos;
 }
 function applyTableEdit(editor, transform) {
   const located = locateTable(editor);
@@ -860,7 +873,7 @@ var NoteToolbar = class {
     const alignEntry = (title, icon, alignment) => ({
       title,
       icon,
-      action: edit((model, ctx) => setAlignment(model, ctx.column, alignment))
+      action: edit((model, ctx) => setAlignment(model, ctx.column, ctx.columnEnd, alignment))
     });
     menu.addItem((item) => {
       item.setTitle("New table").setIcon(resolveIcon(["table", "grid-3x3"])).onClick(() => this.command("editor:insert-table"));
