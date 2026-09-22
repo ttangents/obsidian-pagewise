@@ -90,6 +90,6 @@ export default class PagewisePlugin extends Plugin {
 
   /** Every paginated pane carries the note toolbar; unpaginated panes carry none. */
   private syncToolbar(): void {
-    this.toolbar.sync((view: MarkdownView) => this.controller.isPaginated(view));
+    this.toolbar.sync((view: MarkdownView) => this.controller.isPaginated(view), this.settings.toolbarDirection);
   }
 }

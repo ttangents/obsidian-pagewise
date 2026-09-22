@@ -401,6 +401,64 @@
   padding-left: 6px;
 }
 
+/* ---------- Vertical expansion ----------
+ * The same handle and tray, turned 90 degrees: the tray drops below the handle,
+ * animated by the row track instead of the column track. The handle chevron and
+ * each menu button's chevron point down and right respectively, matching where
+ * the tray and the menus actually open.
+ */
+
+.pagewise-toolbar.is-vertical {
+  flex-direction: column;
+}
+
+.pagewise-toolbar.is-vertical.is-expanded {
+  padding: 3px 3px 8px;
+}
+
+.pagewise-toolbar.is-vertical .pagewise-handle-icon.is-chevron {
+  transform: rotate(45deg);
+}
+
+.pagewise-toolbar.is-vertical.is-expanded .pagewise-handle-icon.is-chevron {
+  transform: rotate(90deg);
+}
+
+.pagewise-toolbar.is-vertical .pagewise-toolbar-reveal {
+  grid-template-columns: none;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 240ms ease, opacity 180ms ease;
+}
+
+.pagewise-toolbar.is-vertical.is-expanded .pagewise-toolbar-reveal {
+  grid-template-columns: none;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 240ms ease, opacity 220ms ease 60ms;
+}
+
+.pagewise-toolbar.is-vertical .pagewise-toolbar-content {
+  flex-direction: column;
+  min-width: unset;
+  min-height: 0;
+  padding-left: 0;
+  padding-top: 0;
+  transition: padding-top 240ms ease;
+}
+
+.pagewise-toolbar.is-vertical.is-expanded .pagewise-toolbar-content {
+  padding-left: 0;
+  padding-top: 6px;
+}
+
+.pagewise-toolbar.is-vertical .pagewise-toolbar-format {
+  flex-direction: column;
+}
+
+/* Menus open to the right in vertical mode; the dropdown chevrons point there. */
+.pagewise-toolbar.is-vertical .pagewise-toolbar-button.has-menu > .pagewise-chevron:last-child svg {
+  transform: rotate(-90deg);
+}
+
 /* ---------- Linked mentions as cards ----------
  * Card styling for the in-document linked mentions panel, active only while the pane
  * is paginated; unpaginated panes and the sidebar Backlinks pane keep stock Obsidian.

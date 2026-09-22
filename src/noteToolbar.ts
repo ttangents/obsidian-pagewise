@@ -1,5 +1,6 @@
 import { App, MarkdownView, Menu, MenuItem, addIcon, getIcon, setIcon, setTooltip } from "obsidian";
 import { applyTableEdit, deleteTable, locateTable } from "./tableEditor";
+import type { ToolbarDirection } from "./settings";
 import {
   deleteColumn,
   deleteRow,
@@ -21,6 +22,7 @@ const HEADING_LEVELS = [1, 2, 3, 4, 5, 6] as const;
 const HEADING_ICON_PREFIX = "pagewise-heading-";
 const SEPARATOR_ICON = "pagewise-separator";
 const EXPANDED_CLASS = "is-expanded";
+const VERTICAL_CLASS = "is-vertical";
 const COLLAPSE_DELAY_MS = 5000;
 
 /** Obsidian's Menu and MenuItem expose their DOM privately; typed here, guarded at use. */
@@ -99,6 +101,8 @@ const CALLOUT_TYPES: CalloutType[] = [
 export class NoteToolbar {
   /** One observer per pane, so the bar re-anchors when the pane is resized. */
   private readonly hostObservers = new Map<HTMLElement, ResizeObserver>();
+  /** Direction bars are built for; sync() keeps it current and rebuilds bars that disagree. */
+  private vertical = false;
 
   constructor(
     private readonly app: App,
@@ -107,18 +111,26 @@ export class NoteToolbar {
     registerCustomIcons();
   }
 
-  /** Ensures each open Markdown pane has a toolbar exactly when the predicate says so. */
-  sync(shouldShow: (view: MarkdownView) => boolean): void {
+  /**
+   * Ensures each open Markdown pane has a toolbar exactly when the predicate says so.
+   * A direction change rebuilds existing bars, since tooltip placement is set at build time.
+   */
+  sync(shouldShow: (view: MarkdownView) => boolean, direction: ToolbarDirection = "horizontal"): void {
+    this.vertical = direction === "vertical";
     this.pruneClosedHosts();
     this.markdownViews().forEach((view) => {
       const host = view.contentEl;
-      const existing = host.querySelector(`:scope > .${TOOLBAR_CLASS}`);
+      let existing = host.querySelector(`:scope > .${TOOLBAR_CLASS}`);
       if (!shouldShow(view)) {
         existing?.remove();
         host.classList.remove(HOST_CLASS);
         this.hostObservers.get(host)?.disconnect();
         this.hostObservers.delete(host);
         return;
+      }
+      if (existing instanceof HTMLElement && existing.classList.contains(VERTICAL_CLASS) !== this.vertical) {
+        existing.remove();
+        existing = null;
       }
       if (existing instanceof HTMLElement) {
         this.position(existing, host);
@@ -185,6 +197,7 @@ export class NoteToolbar {
   private build(view: MarkdownView): HTMLElement {
     const bar = document.createElement("div");
     bar.className = TOOLBAR_CLASS;
+    bar.classList.toggle(VERTICAL_CLASS, this.vertical);
     bar.addEventListener("mousedown", (event) => event.preventDefault());
     const format = document.createElement("div");
     format.className = FORMAT_GROUP_CLASS;
@@ -456,14 +469,23 @@ export class NoteToolbar {
     });
   }
 
-  /** A button whose face is the given element and whose click opens a native menu. */
+  /**
+   * A button whose face is the given element and whose click opens a native menu:
+   * under the pointer in horizontal mode, and at the button's right edge in vertical
+   * mode so the menu never covers the controls below it.
+   */
   private menuButton(face: HTMLElement, label: string, fill: (menu: Menu) => void): HTMLElement {
     const button = this.button(label, (event) => {
       const menu = new Menu();
       menu.setUseNativeMenu(false);
       (menu as MenuWithDom).dom?.classList.add("pagewise-menu");
       fill(menu);
-      menu.showAtMouseEvent(event);
+      if (button.closest(`.${TOOLBAR_CLASS}`)?.classList.contains(VERTICAL_CLASS)) {
+        const rect = button.getBoundingClientRect();
+        menu.showAtPosition({ x: rect.right + 6, y: rect.top });
+      } else {
+        menu.showAtMouseEvent(event);
+      }
     });
     button.classList.add("has-menu");
     const chevron = document.createElement("span");
@@ -613,7 +635,8 @@ export class NoteToolbar {
     const button = document.createElement("button");
     button.className = "pagewise-toolbar-button clickable-icon";
     button.setAttribute("aria-label", label);
-    setTooltip(button, label, { placement: "bottom" });
+    /* Tooltips sit beside the stack in vertical mode so they never cover the next control. */
+    setTooltip(button, label, { placement: this.vertical ? "right" : "bottom" });
     button.addEventListener("click", (event) => {
       event.preventDefault();
       onClick(event);

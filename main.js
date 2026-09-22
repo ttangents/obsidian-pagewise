@@ -654,6 +654,7 @@ var HEADING_LEVELS = [1, 2, 3, 4, 5, 6];
 var HEADING_ICON_PREFIX = "pagewise-heading-";
 var SEPARATOR_ICON = "pagewise-separator";
 var EXPANDED_CLASS = "is-expanded";
+var VERTICAL_CLASS = "is-vertical";
 var COLLAPSE_DELAY_MS = 5e3;
 function registerCustomIcons() {
   HEADING_LEVELS.forEach((level) => {
@@ -686,20 +687,30 @@ var NoteToolbar = class {
     this.actions = actions;
     /** One observer per pane, so the bar re-anchors when the pane is resized. */
     this.hostObservers = /* @__PURE__ */ new Map();
+    /** Direction bars are built for; sync() keeps it current and rebuilds bars that disagree. */
+    this.vertical = false;
     registerCustomIcons();
   }
-  /** Ensures each open Markdown pane has a toolbar exactly when the predicate says so. */
-  sync(shouldShow) {
+  /**
+   * Ensures each open Markdown pane has a toolbar exactly when the predicate says so.
+   * A direction change rebuilds existing bars, since tooltip placement is set at build time.
+   */
+  sync(shouldShow, direction = "horizontal") {
+    this.vertical = direction === "vertical";
     this.pruneClosedHosts();
     this.markdownViews().forEach((view) => {
       const host = view.contentEl;
-      const existing = host.querySelector(`:scope > .${TOOLBAR_CLASS}`);
+      let existing = host.querySelector(`:scope > .${TOOLBAR_CLASS}`);
       if (!shouldShow(view)) {
         existing?.remove();
         host.classList.remove(HOST_CLASS);
         this.hostObservers.get(host)?.disconnect();
         this.hostObservers.delete(host);
         return;
+      }
+      if (existing instanceof HTMLElement && existing.classList.contains(VERTICAL_CLASS) !== this.vertical) {
+        existing.remove();
+        existing = null;
       }
       if (existing instanceof HTMLElement) {
         this.position(existing, host);
@@ -760,6 +771,7 @@ var NoteToolbar = class {
   build(view) {
     const bar = document.createElement("div");
     bar.className = TOOLBAR_CLASS;
+    bar.classList.toggle(VERTICAL_CLASS, this.vertical);
     bar.addEventListener("mousedown", (event) => event.preventDefault());
     const format = document.createElement("div");
     format.className = FORMAT_GROUP_CLASS;
@@ -1013,14 +1025,23 @@ var NoteToolbar = class {
       item.onClick(edit((model) => transpose(model)));
     });
   }
-  /** A button whose face is the given element and whose click opens a native menu. */
+  /**
+   * A button whose face is the given element and whose click opens a native menu:
+   * under the pointer in horizontal mode, and at the button's right edge in vertical
+   * mode so the menu never covers the controls below it.
+   */
   menuButton(face, label, fill) {
     const button = this.button(label, (event) => {
       const menu = new import_obsidian2.Menu();
       menu.setUseNativeMenu(false);
       menu.dom?.classList.add("pagewise-menu");
       fill(menu);
-      menu.showAtMouseEvent(event);
+      if (button.closest(`.${TOOLBAR_CLASS}`)?.classList.contains(VERTICAL_CLASS)) {
+        const rect = button.getBoundingClientRect();
+        menu.showAtPosition({ x: rect.right + 6, y: rect.top });
+      } else {
+        menu.showAtMouseEvent(event);
+      }
     });
     button.classList.add("has-menu");
     const chevron = document.createElement("span");
@@ -1157,7 +1178,7 @@ ${body}`);
     const button = document.createElement("button");
     button.className = "pagewise-toolbar-button clickable-icon";
     button.setAttribute("aria-label", label);
-    (0, import_obsidian2.setTooltip)(button, label, { placement: "bottom" });
+    (0, import_obsidian2.setTooltip)(button, label, { placement: this.vertical ? "right" : "bottom" });
     button.addEventListener("click", (event) => {
       event.preventDefault();
       onClick(event);
@@ -1255,7 +1276,8 @@ var DEFAULT_SETTINGS = {
   pageSize: "a4",
   marginMm: 25.4,
   gapPx: 24,
-  propertiesMode: "sidebar"
+  propertiesMode: "sidebar",
+  toolbarDirection: "horizontal"
 };
 var PagewiseSettingTab = class extends import_obsidian3.PluginSettingTab {
   constructor(app, plugin) {
@@ -1293,6 +1315,11 @@ var PagewiseSettingTab = class extends import_obsidian3.PluginSettingTab {
     new import_obsidian3.Setting(containerEl).setName("Gap between sheets (px)").addSlider(
       (slider) => slider.setLimits(0, 64, 4).setDynamicTooltip().setValue(this.plugin.settings.gapPx).onChange(async (value) => {
         await this.plugin.updateSettings({ gapPx: value });
+      })
+    );
+    new import_obsidian3.Setting(containerEl).setName("Toolbar expansion").setDesc("Which way the collapsed toolbar opens its tray of controls.").addDropdown(
+      (dropdown) => dropdown.addOption("horizontal", "Horizontal (to the right)").addOption("vertical", "Vertical (downwards)").setValue(this.plugin.settings.toolbarDirection).onChange(async (value) => {
+        await this.plugin.updateSettings({ toolbarDirection: value });
       })
     );
   }
@@ -1375,6 +1402,6 @@ var PagewisePlugin = class extends import_obsidian4.Plugin {
   }
   /** Every paginated pane carries the note toolbar; unpaginated panes carry none. */
   syncToolbar() {
-    this.toolbar.sync((view) => this.controller.isPaginated(view));
+    this.toolbar.sync((view) => this.controller.isPaginated(view), this.settings.toolbarDirection);
   }
 };
