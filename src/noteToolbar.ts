@@ -1,4 +1,18 @@
 import { App, MarkdownView, Menu, MenuItem, addIcon, getIcon, setIcon, setTooltip } from "obsidian";
+import { applyTableEdit, deleteTable, locateTable } from "./tableEditor";
+import {
+  deleteColumn,
+  deleteRow,
+  duplicateRow,
+  insertColumn,
+  insertRow,
+  moveColumn,
+  moveRow,
+  setAlignment,
+  sortRows,
+  transpose,
+  type ColumnAlignment,
+} from "./tableModel";
 
 const TOOLBAR_CLASS = "pagewise-toolbar";
 const FORMAT_GROUP_CLASS = "pagewise-toolbar-format";
@@ -38,6 +52,14 @@ interface CalloutType {
   id: string;
   title: string;
   icon: string[];
+}
+
+/** One pickable entry in a right-opening submenu. */
+interface SubmenuEntry {
+  title: string;
+  icon: string[];
+  action: () => void;
+  disabled?: boolean;
 }
 
 /** Registers the Bear-style icons Lucide has no equivalent for: boxed heading numerals and the dot-line separator. */
@@ -175,7 +197,7 @@ export class NoteToolbar {
         this.command("editor:toggle-highlight")
       ),
       this.iconButton(["link-2", "link"], "Insert link", () => this.command("editor:insert-link")),
-      this.iconButton(["grid-3x3", "grid", "table"], "Insert table", () => this.command("editor:insert-table")),
+      this.tableButton(view),
       this.iconButton(["image-plus", "image"], "Insert image", () => this.command("editor:attach-file"))
     );
     const content = document.createElement("div");
@@ -265,6 +287,175 @@ export class NoteToolbar {
     });
   }
 
+  /** The table control: insert a new table, or operate on the one under the cursor. */
+  private tableButton(view: MarkdownView): HTMLElement {
+    const face = document.createElement("span");
+    face.className = "pagewise-chevron";
+    setIcon(face, resolveIcon(["grid-3x3", "grid", "table"]));
+    return this.menuButton(face, "Table", (menu) => this.fillTableMenu(menu, view));
+  }
+
+  /**
+   * The table menu, built fresh on every open so it reflects where the cursor is:
+   * everything but "New table" needs the cursor inside a table, and row operations
+   * additionally need it on a body row rather than the header or delimiter line.
+   * Operations rewrite the table's Markdown directly, because Obsidian keeps its
+   * own table functions in the widget's private context menu, not in commands.
+   */
+  private fillTableMenu(menu: Menu, view: MarkdownView): void {
+    const editor = view.editor;
+    const located = locateTable(editor);
+    const inTable = located !== null;
+    const onBodyRow = located?.context.bodyRow !== null && inTable;
+    const edit = (transform: Parameters<typeof applyTableEdit>[1]) => () => applyTableEdit(editor, transform);
+    const alignEntry = (title: string, icon: string[], alignment: ColumnAlignment): SubmenuEntry => ({
+      title,
+      icon,
+      action: edit((model, ctx) => setAlignment(model, ctx.column, alignment)),
+    });
+
+    menu.addItem((item) => {
+      item
+        .setTitle("New table")
+        .setIcon(resolveIcon(["table", "grid-3x3"]))
+        .onClick(() => this.command("editor:insert-table"));
+      this.appendHotkeyHint(item, "editor:insert-table");
+    });
+    menu.addSeparator();
+    this.submenuItem(
+      menu,
+      "Align column",
+      ["align-center", "align-left"],
+      [
+        alignEntry("Left", ["align-left"], "left"),
+        alignEntry("Center", ["align-center"], "center"),
+        alignEntry("Right", ["align-right"], "right"),
+      ],
+      !inTable
+    );
+    this.submenuItem(
+      menu,
+      "Insert",
+      ["plus"],
+      [
+        {
+          title: "Row above",
+          icon: ["arrow-up-to-line", "arrow-up"],
+          action: edit((model, ctx) => insertRow(model, ctx.bodyRow ?? 0)),
+        },
+        {
+          title: "Row below",
+          icon: ["arrow-down-to-line", "arrow-down"],
+          action: edit((model, ctx) => insertRow(model, ctx.bodyRow === null ? 0 : ctx.bodyRow + 1)),
+        },
+        {
+          title: "Column left",
+          icon: ["arrow-left-to-line", "arrow-left"],
+          action: edit((model, ctx) => insertColumn(model, ctx.column)),
+        },
+        {
+          title: "Column right",
+          icon: ["arrow-right-to-line", "arrow-right"],
+          action: edit((model, ctx) => insertColumn(model, ctx.column + 1)),
+        },
+      ],
+      !inTable
+    );
+    this.submenuItem(
+      menu,
+      "Move",
+      ["move", "move-3d"],
+      [
+        {
+          title: "Row up",
+          icon: ["move-up", "arrow-up"],
+          action: edit((model, ctx) => (ctx.bodyRow === null ? null : moveRow(model, ctx.bodyRow, -1))),
+          disabled: !onBodyRow,
+        },
+        {
+          title: "Row down",
+          icon: ["move-down", "arrow-down"],
+          action: edit((model, ctx) => (ctx.bodyRow === null ? null : moveRow(model, ctx.bodyRow, 1))),
+          disabled: !onBodyRow,
+        },
+        {
+          title: "Column left",
+          icon: ["move-left", "arrow-left"],
+          action: edit((model, ctx) => moveColumn(model, ctx.column, -1)),
+        },
+        {
+          title: "Column right",
+          icon: ["move-right", "arrow-right"],
+          action: edit((model, ctx) => moveColumn(model, ctx.column, 1)),
+        },
+      ],
+      !inTable
+    );
+    this.submenuItem(
+      menu,
+      "Delete",
+      ["trash-2", "trash"],
+      [
+        {
+          title: "Row",
+          icon: ["trash-2", "trash"],
+          action: edit((model, ctx) => (ctx.bodyRow === null ? null : deleteRow(model, ctx.bodyRow))),
+          disabled: !onBodyRow,
+        },
+        {
+          title: "Column",
+          icon: ["trash-2", "trash"],
+          action: edit((model, ctx) => deleteColumn(model, ctx.column)),
+        },
+        { title: "Table", icon: ["trash-2", "trash"], action: () => deleteTable(editor) },
+      ],
+      !inTable
+    );
+    menu.addSeparator();
+    this.submenuItem(
+      menu,
+      "Sort rows",
+      ["arrow-down-a-z", "sort-asc"],
+      [
+        {
+          title: "A to Z",
+          icon: ["arrow-down-a-z", "sort-asc"],
+          action: edit((model, ctx) => sortRows(model, ctx.column, true)),
+        },
+        {
+          title: "Z to A",
+          icon: ["arrow-down-z-a", "sort-desc"],
+          action: edit((model, ctx) => sortRows(model, ctx.column, false)),
+        },
+      ],
+      !inTable
+    );
+    menu.addItem((item) => {
+      item.setTitle("Duplicate row").setIcon(resolveIcon(["copy-plus", "copy"]));
+      if (!onBodyRow) {
+        item.setDisabled(true);
+        return;
+      }
+      item.onClick(edit((model, ctx) => (ctx.bodyRow === null ? null : duplicateRow(model, ctx.bodyRow))));
+    });
+    menu.addItem((item) => {
+      item.setTitle("Tidy table").setIcon(resolveIcon(["wand-sparkles", "wand-2", "wand"]));
+      if (!inTable) {
+        item.setDisabled(true);
+        return;
+      }
+      item.onClick(edit((model) => model));
+    });
+    menu.addItem((item) => {
+      item.setTitle("Transpose").setIcon(resolveIcon(["move-diagonal", "maximize-2"]));
+      if (!inTable) {
+        item.setDisabled(true);
+        return;
+      }
+      item.onClick(edit((model) => transpose(model)));
+    });
+  }
+
   /** A button whose face is the given element and whose click opens a native menu. */
   private menuButton(face: HTMLElement, label: string, fill: (menu: Menu) => void): HTMLElement {
     const button = this.button(label, (event) => {
@@ -282,18 +473,37 @@ export class NoteToolbar {
     return button;
   }
 
-  /**
-   * A callout entry with a submenu of Bear's five types, opened on hover or click and
-   * placed at the entry's right edge so it never covers the parent menu. Hovering a
-   * different parent entry closes it. Without a reachable item DOM (no place to anchor),
-   * the entry itself inserts a "note" callout.
-   */
+  /** A callout entry whose submenu offers Bear's five types. */
   private calloutMenuItem(menu: Menu, title: string, view: MarkdownView, inline: boolean): void {
+    this.submenuItem(
+      menu,
+      title,
+      ["list-indent-increase", "indent"],
+      CALLOUT_TYPES.map(({ id, title: entryTitle, icon }) => ({
+        title: entryTitle,
+        icon,
+        action: () => this.insertCallout(view, id, inline),
+      }))
+    );
+  }
+
+  /**
+   * A menu entry with a submenu of the given entries, opened on hover or click and
+   * placed at the entry's right edge so it never covers the parent menu. Hovering a
+   * different parent entry closes it. Without a reachable item DOM (no place to
+   * anchor), the entry itself runs the first enabled action.
+   */
+  private submenuItem(menu: Menu, title: string, icon: string[], entries: SubmenuEntry[], disabled = false): void {
     menu.addItem((item) => {
-      item.setTitle(title).setIcon(resolveIcon(["list-indent-increase", "indent"]));
+      item.setTitle(title).setIcon(resolveIcon(icon));
+      if (disabled) {
+        item.setDisabled(true);
+        return;
+      }
       const itemDom = (item as MenuItemWithDom).dom;
       if (!itemDom) {
-        item.onClick(() => this.insertCallout(view, "note", inline));
+        const fallback = entries.find((entry) => !entry.disabled);
+        if (fallback) item.onClick(() => fallback.action());
         return;
       }
       const arrow = document.createElement("span");
@@ -307,7 +517,7 @@ export class NoteToolbar {
       };
       const open = () => {
         if (submenu) return;
-        submenu = this.buildCalloutSubmenu(menu, view, inline);
+        submenu = this.buildEntrySubmenu(menu, entries);
         const rect = itemDom.getBoundingClientRect();
         submenu.showAtPosition({ x: rect.right + 4, y: rect.top });
       };
@@ -319,21 +529,23 @@ export class NoteToolbar {
     });
   }
 
-  /** The five-type submenu; picking a type inserts the callout and closes both menus. */
-  private buildCalloutSubmenu(parent: Menu, view: MarkdownView, inline: boolean): Menu {
+  /** The submenu itself; picking an entry runs it and closes both menus. */
+  private buildEntrySubmenu(parent: Menu, entries: SubmenuEntry[]): Menu {
     const submenu = new Menu();
     submenu.setUseNativeMenu(false);
     (submenu as MenuWithDom).dom?.classList.add("pagewise-menu");
-    CALLOUT_TYPES.forEach(({ id, title, icon }) =>
-      submenu.addItem((item) =>
-        item
-          .setTitle(title)
-          .setIcon(resolveIcon(icon))
-          .onClick(() => {
-            this.insertCallout(view, id, inline);
-            parent.hide();
-          })
-      )
+    entries.forEach(({ title, icon, action, disabled }) =>
+      submenu.addItem((item) => {
+        item.setTitle(title).setIcon(resolveIcon(icon));
+        if (disabled) {
+          item.setDisabled(true);
+          return;
+        }
+        item.onClick(() => {
+          action();
+          parent.hide();
+        });
+      })
     );
     return submenu;
   }

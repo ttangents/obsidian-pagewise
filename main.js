@@ -386,6 +386,254 @@ function metricsFrom(settings) {
 
 // src/noteToolbar.ts
 var import_obsidian2 = require("obsidian");
+
+// src/tableModel.ts
+function isTableLine(line) {
+  return line.trim().length > 0 && splitCells(line).length > 0 && line.includes("|");
+}
+function parseTable(lines) {
+  if (lines.length < 2) return null;
+  const header = splitCells(lines[0]);
+  const alignments = parseDelimiter(lines[1]);
+  if (header.length === 0 || alignments === null) return null;
+  const width = header.length;
+  const rows = lines.slice(2).map((line) => normalizeRow(splitCells(line), width));
+  return {
+    header,
+    alignments: normalizeAlignments(alignments, width),
+    rows,
+    indent: /^\s*/.exec(lines[0])?.[0] ?? ""
+  };
+}
+function serializeTable(model) {
+  const widths = model.header.map(
+    (cell, col) => Math.max(3, cell.length, ...model.rows.map((row) => (row[col] ?? "").length))
+  );
+  const line = (cells) => `${model.indent}| ${cells.map((cell, col) => cell.padEnd(widths[col])).join(" | ")} |`;
+  const delimiter = model.alignments.map((alignment, col) => delimiterCell(alignment, widths[col]));
+  return [line(model.header), line(delimiter), ...model.rows.map((row) => line(normalizeRow(row, widths.length)))];
+}
+function setAlignment(model, column, alignment) {
+  if (!validColumn(model, column)) return null;
+  const alignments = [...model.alignments];
+  alignments[column] = alignment;
+  return { ...model, alignments };
+}
+function insertRow(model, index) {
+  const at = clamp(index, 0, model.rows.length);
+  const rows = [...model.rows];
+  rows.splice(at, 0, new Array(model.header.length).fill(""));
+  return { ...model, rows };
+}
+function insertColumn(model, index) {
+  const at = clamp(index, 0, model.header.length);
+  const header = [...model.header];
+  header.splice(at, 0, "");
+  const alignments = [...model.alignments];
+  alignments.splice(at, 0, "none");
+  const rows = model.rows.map((row) => {
+    const next = [...row];
+    next.splice(at, 0, "");
+    return next;
+  });
+  return { ...model, header, alignments, rows };
+}
+function deleteRow(model, index) {
+  if (index < 0 || index >= model.rows.length) return null;
+  return { ...model, rows: model.rows.filter((_, i) => i !== index) };
+}
+function deleteColumn(model, column) {
+  if (!validColumn(model, column) || model.header.length <= 1) return null;
+  return {
+    ...model,
+    header: model.header.filter((_, i) => i !== column),
+    alignments: model.alignments.filter((_, i) => i !== column),
+    rows: model.rows.map((row) => row.filter((_, i) => i !== column))
+  };
+}
+function moveRow(model, index, delta) {
+  const target = index + delta;
+  if (index < 0 || index >= model.rows.length || target < 0 || target >= model.rows.length) return null;
+  const rows = [...model.rows];
+  const [moved] = rows.splice(index, 1);
+  rows.splice(target, 0, moved);
+  return { ...model, rows };
+}
+function moveColumn(model, column, delta) {
+  const target = column + delta;
+  if (!validColumn(model, column) || target < 0 || target >= model.header.length) return null;
+  const move = (cells) => {
+    const next = [...cells];
+    const [moved] = next.splice(column, 1);
+    next.splice(target, 0, moved);
+    return next;
+  };
+  return {
+    ...model,
+    header: move(model.header),
+    alignments: move(model.alignments),
+    rows: model.rows.map(move)
+  };
+}
+function duplicateRow(model, index) {
+  if (index < 0 || index >= model.rows.length) return null;
+  const rows = [...model.rows];
+  rows.splice(index + 1, 0, [...model.rows[index]]);
+  return { ...model, rows };
+}
+function sortRows(model, column, ascending) {
+  if (!validColumn(model, column)) return null;
+  const rows = [...model.rows].sort((a, b) => {
+    const order = compareCells(a[column] ?? "", b[column] ?? "");
+    return ascending ? order : -order;
+  });
+  return { ...model, rows };
+}
+function transpose(model) {
+  const header = [model.header[0] ?? "", ...model.rows.map((row) => row[0] ?? "")];
+  const rows = model.header.slice(1).map((label, i) => [label, ...model.rows.map((row) => row[i + 1] ?? "")]);
+  return {
+    ...model,
+    header,
+    alignments: new Array(header.length).fill("none"),
+    rows
+  };
+}
+function splitCells(line) {
+  let body = line.trim();
+  if (body.startsWith("|")) body = body.slice(1);
+  if (body.endsWith("|") && !body.endsWith("\\|")) body = body.slice(0, -1);
+  const cells = [];
+  let current = "";
+  for (let i = 0; i < body.length; i += 1) {
+    const char = body[i];
+    if (char === "\\" && body[i + 1] === "|") {
+      current += "\\|";
+      i += 1;
+      continue;
+    }
+    if (char === "|") {
+      cells.push(current.trim());
+      current = "";
+      continue;
+    }
+    current += char;
+  }
+  cells.push(current.trim());
+  return cells;
+}
+function parseDelimiter(line) {
+  const cells = splitCells(line);
+  const alignments = [];
+  for (const cell of cells) {
+    if (!/^:?-+:?$/.test(cell)) return null;
+    const left = cell.startsWith(":");
+    const right = cell.endsWith(":");
+    alignments.push(left && right ? "center" : left ? "left" : right ? "right" : "none");
+  }
+  return alignments;
+}
+function delimiterCell(alignment, width) {
+  switch (alignment) {
+    case "left":
+      return `:${"-".repeat(width - 1)}`;
+    case "right":
+      return `${"-".repeat(width - 1)}:`;
+    case "center":
+      return `:${"-".repeat(width - 2)}:`;
+    default:
+      return "-".repeat(width);
+  }
+}
+function normalizeRow(cells, width) {
+  const row = cells.slice(0, width);
+  while (row.length < width) row.push("");
+  return row;
+}
+function normalizeAlignments(alignments, width) {
+  const next = alignments.slice(0, width);
+  while (next.length < width) next.push("none");
+  return next;
+}
+function compareCells(a, b) {
+  const numA = Number(a);
+  const numB = Number(b);
+  if (a !== "" && b !== "" && Number.isFinite(numA) && Number.isFinite(numB)) return numA - numB;
+  return a.localeCompare(b);
+}
+function validColumn(model, column) {
+  return column >= 0 && column < model.header.length;
+}
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+// src/tableEditor.ts
+function locateTable(editor) {
+  const cursor = editor.getCursor();
+  if (!isTableLine(editor.getLine(cursor.line))) return null;
+  let startLine = cursor.line;
+  while (startLine > 0 && isTableLine(editor.getLine(startLine - 1))) startLine -= 1;
+  let endLine = cursor.line;
+  while (endLine < editor.lineCount() - 1 && isTableLine(editor.getLine(endLine + 1))) endLine += 1;
+  const lines = [];
+  for (let line = startLine; line <= endLine; line += 1) lines.push(editor.getLine(line));
+  const model = parseTable(lines);
+  if (!model) return null;
+  const relative = cursor.line - startLine;
+  return {
+    startLine,
+    endLine,
+    model,
+    context: {
+      column: columnAt(editor.getLine(cursor.line), cursor.ch, model.header.length),
+      bodyRow: relative >= 2 && relative - 2 < model.rows.length ? relative - 2 : null
+    }
+  };
+}
+function applyTableEdit(editor, transform) {
+  const located = locateTable(editor);
+  if (!located) return;
+  const next = transform(located.model, located.context);
+  if (!next) return;
+  replaceTable(editor, located, serializeTable(next));
+}
+function deleteTable(editor) {
+  const located = locateTable(editor);
+  if (!located) return;
+  const afterEnd = located.endLine < editor.lineCount() - 1;
+  editor.replaceRange(
+    "",
+    { line: located.startLine, ch: 0 },
+    afterEnd ? { line: located.endLine + 1, ch: 0 } : { line: located.endLine, ch: editor.getLine(located.endLine).length }
+  );
+  editor.setCursor({ line: Math.min(located.startLine, editor.lineCount() - 1), ch: 0 });
+}
+function replaceTable(editor, located, lines) {
+  const cursor = editor.getCursor();
+  editor.replaceRange(
+    lines.join("\n"),
+    { line: located.startLine, ch: 0 },
+    { line: located.endLine, ch: editor.getLine(located.endLine).length }
+  );
+  const line = Math.min(cursor.line, located.startLine + lines.length - 1);
+  editor.setCursor({ line, ch: Math.min(cursor.ch, editor.getLine(line).length) });
+}
+function columnAt(lineText, ch, columnCount) {
+  const before = lineText.slice(0, ch);
+  let pipes = 0;
+  for (let i = 0; i < before.length; i += 1) {
+    if (before[i] === "\\") {
+      i += 1;
+      continue;
+    }
+    if (before[i] === "|") pipes += 1;
+  }
+  const leadingPipe = /^\s*\|/.test(lineText) ? 1 : 0;
+  return Math.max(0, Math.min(columnCount - 1, pipes - leadingPipe));
+}
+
+// src/noteToolbar.ts
 var TOOLBAR_CLASS = "pagewise-toolbar";
 var FORMAT_GROUP_CLASS = "pagewise-toolbar-format";
 var HOST_CLASS = "pagewise-has-toolbar";
@@ -513,7 +761,7 @@ var NoteToolbar = class {
         () => this.command("editor:toggle-highlight")
       ),
       this.iconButton(["link-2", "link"], "Insert link", () => this.command("editor:insert-link")),
-      this.iconButton(["grid-3x3", "grid", "table"], "Insert table", () => this.command("editor:insert-table")),
+      this.tableButton(view),
       this.iconButton(["image-plus", "image"], "Insert image", () => this.command("editor:attach-file"))
     );
     const content = document.createElement("div");
@@ -589,6 +837,169 @@ var NoteToolbar = class {
       );
     });
   }
+  /** The table control: insert a new table, or operate on the one under the cursor. */
+  tableButton(view) {
+    const face = document.createElement("span");
+    face.className = "pagewise-chevron";
+    (0, import_obsidian2.setIcon)(face, resolveIcon(["grid-3x3", "grid", "table"]));
+    return this.menuButton(face, "Table", (menu) => this.fillTableMenu(menu, view));
+  }
+  /**
+   * The table menu, built fresh on every open so it reflects where the cursor is:
+   * everything but "New table" needs the cursor inside a table, and row operations
+   * additionally need it on a body row rather than the header or delimiter line.
+   * Operations rewrite the table's Markdown directly, because Obsidian keeps its
+   * own table functions in the widget's private context menu, not in commands.
+   */
+  fillTableMenu(menu, view) {
+    const editor = view.editor;
+    const located = locateTable(editor);
+    const inTable = located !== null;
+    const onBodyRow = located?.context.bodyRow !== null && inTable;
+    const edit = (transform) => () => applyTableEdit(editor, transform);
+    const alignEntry = (title, icon, alignment) => ({
+      title,
+      icon,
+      action: edit((model, ctx) => setAlignment(model, ctx.column, alignment))
+    });
+    menu.addItem((item) => {
+      item.setTitle("New table").setIcon(resolveIcon(["table", "grid-3x3"])).onClick(() => this.command("editor:insert-table"));
+      this.appendHotkeyHint(item, "editor:insert-table");
+    });
+    menu.addSeparator();
+    this.submenuItem(
+      menu,
+      "Align column",
+      ["align-center", "align-left"],
+      [
+        alignEntry("Left", ["align-left"], "left"),
+        alignEntry("Center", ["align-center"], "center"),
+        alignEntry("Right", ["align-right"], "right")
+      ],
+      !inTable
+    );
+    this.submenuItem(
+      menu,
+      "Insert",
+      ["plus"],
+      [
+        {
+          title: "Row above",
+          icon: ["arrow-up-to-line", "arrow-up"],
+          action: edit((model, ctx) => insertRow(model, ctx.bodyRow ?? 0))
+        },
+        {
+          title: "Row below",
+          icon: ["arrow-down-to-line", "arrow-down"],
+          action: edit((model, ctx) => insertRow(model, ctx.bodyRow === null ? 0 : ctx.bodyRow + 1))
+        },
+        {
+          title: "Column left",
+          icon: ["arrow-left-to-line", "arrow-left"],
+          action: edit((model, ctx) => insertColumn(model, ctx.column))
+        },
+        {
+          title: "Column right",
+          icon: ["arrow-right-to-line", "arrow-right"],
+          action: edit((model, ctx) => insertColumn(model, ctx.column + 1))
+        }
+      ],
+      !inTable
+    );
+    this.submenuItem(
+      menu,
+      "Move",
+      ["move", "move-3d"],
+      [
+        {
+          title: "Row up",
+          icon: ["move-up", "arrow-up"],
+          action: edit((model, ctx) => ctx.bodyRow === null ? null : moveRow(model, ctx.bodyRow, -1)),
+          disabled: !onBodyRow
+        },
+        {
+          title: "Row down",
+          icon: ["move-down", "arrow-down"],
+          action: edit((model, ctx) => ctx.bodyRow === null ? null : moveRow(model, ctx.bodyRow, 1)),
+          disabled: !onBodyRow
+        },
+        {
+          title: "Column left",
+          icon: ["move-left", "arrow-left"],
+          action: edit((model, ctx) => moveColumn(model, ctx.column, -1))
+        },
+        {
+          title: "Column right",
+          icon: ["move-right", "arrow-right"],
+          action: edit((model, ctx) => moveColumn(model, ctx.column, 1))
+        }
+      ],
+      !inTable
+    );
+    this.submenuItem(
+      menu,
+      "Delete",
+      ["trash-2", "trash"],
+      [
+        {
+          title: "Row",
+          icon: ["trash-2", "trash"],
+          action: edit((model, ctx) => ctx.bodyRow === null ? null : deleteRow(model, ctx.bodyRow)),
+          disabled: !onBodyRow
+        },
+        {
+          title: "Column",
+          icon: ["trash-2", "trash"],
+          action: edit((model, ctx) => deleteColumn(model, ctx.column))
+        },
+        { title: "Table", icon: ["trash-2", "trash"], action: () => deleteTable(editor) }
+      ],
+      !inTable
+    );
+    menu.addSeparator();
+    this.submenuItem(
+      menu,
+      "Sort rows",
+      ["arrow-down-a-z", "sort-asc"],
+      [
+        {
+          title: "A to Z",
+          icon: ["arrow-down-a-z", "sort-asc"],
+          action: edit((model, ctx) => sortRows(model, ctx.column, true))
+        },
+        {
+          title: "Z to A",
+          icon: ["arrow-down-z-a", "sort-desc"],
+          action: edit((model, ctx) => sortRows(model, ctx.column, false))
+        }
+      ],
+      !inTable
+    );
+    menu.addItem((item) => {
+      item.setTitle("Duplicate row").setIcon(resolveIcon(["copy-plus", "copy"]));
+      if (!onBodyRow) {
+        item.setDisabled(true);
+        return;
+      }
+      item.onClick(edit((model, ctx) => ctx.bodyRow === null ? null : duplicateRow(model, ctx.bodyRow)));
+    });
+    menu.addItem((item) => {
+      item.setTitle("Tidy table").setIcon(resolveIcon(["wand-sparkles", "wand-2", "wand"]));
+      if (!inTable) {
+        item.setDisabled(true);
+        return;
+      }
+      item.onClick(edit((model) => model));
+    });
+    menu.addItem((item) => {
+      item.setTitle("Transpose").setIcon(resolveIcon(["move-diagonal", "maximize-2"]));
+      if (!inTable) {
+        item.setDisabled(true);
+        return;
+      }
+      item.onClick(edit((model) => transpose(model)));
+    });
+  }
   /** A button whose face is the given element and whose click opens a native menu. */
   menuButton(face, label, fill) {
     const button = this.button(label, (event) => {
@@ -605,18 +1016,36 @@ var NoteToolbar = class {
     button.append(face, chevron);
     return button;
   }
-  /**
-   * A callout entry with a submenu of Bear's five types, opened on hover or click and
-   * placed at the entry's right edge so it never covers the parent menu. Hovering a
-   * different parent entry closes it. Without a reachable item DOM (no place to anchor),
-   * the entry itself inserts a "note" callout.
-   */
+  /** A callout entry whose submenu offers Bear's five types. */
   calloutMenuItem(menu, title, view, inline) {
+    this.submenuItem(
+      menu,
+      title,
+      ["list-indent-increase", "indent"],
+      CALLOUT_TYPES.map(({ id, title: entryTitle, icon }) => ({
+        title: entryTitle,
+        icon,
+        action: () => this.insertCallout(view, id, inline)
+      }))
+    );
+  }
+  /**
+   * A menu entry with a submenu of the given entries, opened on hover or click and
+   * placed at the entry's right edge so it never covers the parent menu. Hovering a
+   * different parent entry closes it. Without a reachable item DOM (no place to
+   * anchor), the entry itself runs the first enabled action.
+   */
+  submenuItem(menu, title, icon, entries, disabled = false) {
     menu.addItem((item) => {
-      item.setTitle(title).setIcon(resolveIcon(["list-indent-increase", "indent"]));
+      item.setTitle(title).setIcon(resolveIcon(icon));
+      if (disabled) {
+        item.setDisabled(true);
+        return;
+      }
       const itemDom = item.dom;
       if (!itemDom) {
-        item.onClick(() => this.insertCallout(view, "note", inline));
+        const fallback = entries.find((entry) => !entry.disabled);
+        if (fallback) item.onClick(() => fallback.action());
         return;
       }
       const arrow = document.createElement("span");
@@ -630,7 +1059,7 @@ var NoteToolbar = class {
       };
       const open = () => {
         if (submenu) return;
-        submenu = this.buildCalloutSubmenu(menu, view, inline);
+        submenu = this.buildEntrySubmenu(menu, entries);
         const rect = itemDom.getBoundingClientRect();
         submenu.showAtPosition({ x: rect.right + 4, y: rect.top });
       };
@@ -641,18 +1070,23 @@ var NoteToolbar = class {
       });
     });
   }
-  /** The five-type submenu; picking a type inserts the callout and closes both menus. */
-  buildCalloutSubmenu(parent, view, inline) {
+  /** The submenu itself; picking an entry runs it and closes both menus. */
+  buildEntrySubmenu(parent, entries) {
     const submenu = new import_obsidian2.Menu();
     submenu.setUseNativeMenu(false);
     submenu.dom?.classList.add("pagewise-menu");
-    CALLOUT_TYPES.forEach(
-      ({ id, title, icon }) => submenu.addItem(
-        (item) => item.setTitle(title).setIcon(resolveIcon(icon)).onClick(() => {
-          this.insertCallout(view, id, inline);
+    entries.forEach(
+      ({ title, icon, action, disabled }) => submenu.addItem((item) => {
+        item.setTitle(title).setIcon(resolveIcon(icon));
+        if (disabled) {
+          item.setDisabled(true);
+          return;
+        }
+        item.onClick(() => {
+          action();
           parent.hide();
-        })
-      )
+        });
+      })
     );
     return submenu;
   }
