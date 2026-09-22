@@ -1,0 +1,9 @@
+{
+  "id": "pagewise",
+  "name": "Pagewise",
+  "version": "0.18.0",
+  "minAppVersion": "1.5.0",
+  "description": "Toggle a note between the default view and a paginated, word-processor style page layout that honors the active theme.",
+  "author": "ttangents",
+  "isDesktopOnly": true
+}

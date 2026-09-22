@@ -1,0 +1,517 @@
+/*
+ * Pagewise — paginated, word-processor style sheet layout.
+ *
+ * Every color and font comes from the active theme's variables so the sheets adopt
+ * whatever theme is loaded. Geometry arrives as CSS variables set on <body> by the plugin:
+ *   --pagewise-page-width, --pagewise-page-height, --pagewise-margin, --pagewise-gap
+ */
+
+/* Activation is per pane: the plugin sets this class on one note's container, never on <body>. */
+.workspace-leaf-content[data-type="markdown"].pagewise-active {
+  /* The ground must sit clearly behind the sheet or the page reads as a styled div. */
+  --pagewise-ground: color-mix(in srgb, var(--background-secondary), black 9%);
+  --pagewise-sheet: var(--background-primary);
+  --pagewise-edge: color-mix(in srgb, var(--background-modifier-border), transparent 30%);
+  --pagewise-shadow:
+    0 0 0 1px var(--pagewise-edge),
+    0 1px 2px rgba(0, 0, 0, 0.10),
+    0 4px 10px rgba(0, 0, 0, 0.10),
+    0 12px 32px rgba(0, 0, 0, 0.10);
+  --pagewise-break-height: calc(var(--pagewise-margin) * 2 + var(--pagewise-gap));
+}
+
+.theme-dark .workspace-leaf-content[data-type="markdown"].pagewise-active {
+  --pagewise-ground: color-mix(in srgb, var(--background-secondary), black 30%);
+  --pagewise-shadow:
+    0 0 0 1px var(--pagewise-edge),
+    0 1px 2px rgba(0, 0, 0, 0.45),
+    0 4px 10px rgba(0, 0, 0, 0.40),
+    0 12px 32px rgba(0, 0, 0, 0.35);
+}
+
+/* ---------- Reading view ---------- */
+
+.workspace-leaf-content[data-type="markdown"].pagewise-active .markdown-preview-view {
+  background-color: var(--pagewise-ground);
+  padding: var(--pagewise-gap) 0;
+}
+
+.workspace-leaf-content[data-type="markdown"].pagewise-active .markdown-preview-view .markdown-preview-sizer {
+  box-sizing: border-box;
+  width: var(--pagewise-page-width);
+  max-width: var(--pagewise-page-width);
+  min-height: var(--pagewise-page-height);
+  margin: 0 auto var(--pagewise-gap);
+  padding: var(--pagewise-margin) !important;
+  background-color: var(--pagewise-sheet);
+  box-shadow: var(--pagewise-shadow);
+  --file-line-width: calc(var(--pagewise-page-width) - var(--pagewise-margin) * 2);
+}
+
+/* Themes often draw the Properties panel as a card; on a sheet that chrome reads as UI, not paper. */
+.workspace-leaf-content[data-type="markdown"].pagewise-active .markdown-preview-view .metadata-container,
+.workspace-leaf-content[data-type="markdown"].pagewise-active .markdown-source-view.mod-cm6 .metadata-container {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  border-radius: 0;
+  padding-inline: 0;
+}
+
+/* Sidebar mode: the panel leaves the sheet entirely; the core Properties view carries it. */
+.workspace-leaf-content[data-type="markdown"].pagewise-active.pagewise-props-hidden .markdown-preview-view .metadata-container,
+.workspace-leaf-content[data-type="markdown"].pagewise-active.pagewise-props-hidden .markdown-source-view.mod-cm6 .metadata-container {
+  display: none;
+}
+
+/* The collapsed Properties heading is UI, not page content: keep it quiet but visible. */
+.pagewise-active .metadata-container.is-collapsed .metadata-properties-heading {
+  opacity: 0.35;
+  transition: opacity 120ms ease;
+}
+
+.pagewise-active .metadata-container.is-collapsed:hover .metadata-properties-heading {
+  opacity: 1;
+}
+
+/* A collapsed Properties panel should take only its heading's height. */
+.pagewise-active .metadata-container.is-collapsed {
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.pagewise-active .metadata-container.is-collapsed .metadata-content,
+.pagewise-active .metadata-container.is-collapsed .metadata-properties,
+.pagewise-active .metadata-container.is-collapsed .metadata-add-button {
+  display: none;
+}
+
+/* Page break spacer: transparent for the fill portion, then paints the ground between sheets. */
+.pagewise-active .pagewise-break {
+  position: relative;
+  pointer-events: none;
+}
+
+.pagewise-active .pagewise-break::after {
+  content: "";
+  position: absolute;
+  left: calc(var(--pagewise-margin) * -1);
+  right: calc(var(--pagewise-margin) * -1);
+  bottom: 0;
+  height: var(--pagewise-break-height);
+  background-color: var(--pagewise-ground);
+  box-shadow:
+    inset 0 6px 12px -8px rgba(0, 0, 0, 0.35),
+    inset 0 -6px 12px -8px rgba(0, 0, 0, 0.35);
+}
+
+.pagewise-active .pagewise-tail {
+  pointer-events: none;
+}
+
+/* Page number, set in the bottom margin of the sheet the spacer closes. */
+.pagewise-active .pagewise-break[data-page]::before,
+.pagewise-active .pagewise-tail[data-page]::before {
+  content: attr(data-page);
+  position: absolute;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: var(--font-smallest, 0.75em);
+  line-height: 1;
+  color: var(--text-faint);
+}
+
+/* Centered in the ending sheet's bottom-margin band, above the gap and the next sheet's top margin. */
+.pagewise-active .pagewise-break[data-page]::before {
+  bottom: calc(var(--pagewise-gap) + var(--pagewise-margin) * 1.5);
+}
+
+/* The last sheet's number sits in the sizer's own bottom padding. */
+.pagewise-active .pagewise-tail[data-page]::before {
+  bottom: calc(var(--pagewise-margin) * -0.5);
+}
+
+.pagewise-active .pagewise-break[data-page] {
+  position: relative;
+}
+
+.pagewise-active .pagewise-tail[data-page] {
+  position: relative;
+}
+
+/* ---------- Live Preview and Source mode (sheet styling only; no page breaks) ---------- */
+
+/* Child combinators: table cells host nested editors that must not become sheets. */
+.workspace-leaf-content[data-type="markdown"].pagewise-active .markdown-source-view.mod-cm6 > .cm-editor > .cm-scroller {
+  background-color: var(--pagewise-ground);
+  padding: var(--pagewise-gap) 0;
+}
+
+.workspace-leaf-content[data-type="markdown"].pagewise-active .markdown-source-view.mod-cm6 > .cm-editor > .cm-scroller > .cm-sizer {
+  box-sizing: border-box;
+  width: var(--pagewise-page-width);
+  max-width: var(--pagewise-page-width) !important;
+  min-height: var(--pagewise-page-height);
+  margin: 0 auto var(--pagewise-gap);
+  padding: var(--pagewise-margin) !important;
+  background-color: var(--pagewise-sheet);
+  box-shadow: var(--pagewise-shadow);
+  --file-line-width: calc(var(--pagewise-page-width) - var(--pagewise-margin) * 2);
+}
+
+.pagewise-active .markdown-source-view.mod-cm6 .cm-contentContainer,
+.pagewise-active .markdown-source-view.mod-cm6 .cm-content {
+  background-color: transparent;
+}
+
+/* PDF export and printing must produce Obsidian's plain baseline output.
+ * The exporter renders into a `.print` container that sits outside any
+ * `.pagewise-active` pane, so these rules are deliberately unscoped: every
+ * sheet treatment is reverted and every Pagewise element is removed from the
+ * print flow, wherever the exporter's markup happens to carry them.
+ */
+@media print {
+  .pagewise-active .markdown-preview-view,
+  .pagewise-active .markdown-preview-view .markdown-preview-sizer,
+  .pagewise-active .markdown-source-view.mod-cm6 > .cm-editor > .cm-scroller > .cm-sizer,
+  .print .markdown-preview-view,
+  .print .markdown-preview-sizer {
+    background-color: unset !important;
+    box-shadow: none !important;
+    width: auto !important;
+    max-width: unset !important;
+    min-height: unset !important;
+    margin: unset !important;
+    padding: unset !important;
+  }
+
+  .pagewise-break,
+  .pagewise-tail {
+    display: none !important;
+    height: 0 !important;
+  }
+
+  .pagewise-break::after,
+  .pagewise-tail::after {
+    content: none !important;
+  }
+
+  .pagewise-toolbar {
+    display: none !important;
+  }
+}
+
+/* ---------- Floating note toolbar ----------
+ * Shown on any paginated pane. The formatting glyphs are letterforms styled as the
+ * formatting they apply, after Bear's toolbar.
+ */
+
+.pagewise-has-toolbar {
+  position: relative;
+}
+
+.pagewise-toolbar {
+  position: absolute;
+  top: 10px;
+  /* Horizontal position is set inline by NoteToolbar: the collapsed handle's anchor. */
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  /* Collapsed: uniform padding around the square handle makes the pill a true circle. */
+  padding: 3px;
+  border-radius: 999px;
+  transition: padding 240ms ease;
+  background-color: var(--background-primary);
+  box-shadow: var(--pagewise-toolbar-shadow, 0 0 0 1px var(--background-modifier-border), 0 1px 4px rgba(0, 0, 0, 0.08));
+}
+
+.pagewise-toolbar-format {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+
+/* No editor in reading view: the formatting group hides, the info button stays. */
+.workspace-leaf-content[data-mode="preview"] .pagewise-toolbar-format {
+  display: none;
+}
+
+.pagewise-toolbar-button {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  background: none;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  color: var(--text-muted);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.pagewise-toolbar-button:hover {
+  color: var(--text-normal);
+  background-color: var(--background-modifier-hover);
+}
+
+.pagewise-toolbar-button svg {
+  width: 15px;
+  height: 15px;
+  stroke-width: 2.4px;
+}
+
+/* Menu controls hold an icon plus a chevron, so they size to content. */
+.pagewise-toolbar-button.has-menu {
+  width: auto;
+  grid-auto-flow: column;
+  gap: 1px;
+  padding: 0 4px;
+}
+
+.pagewise-chevron {
+  display: grid;
+  place-items: center;
+}
+
+.pagewise-chevron svg {
+  width: 10px;
+  height: 10px;
+}
+
+/* Menu faces that are icons (the blocks control) render at button icon size. */
+.pagewise-toolbar-button.has-menu > .pagewise-chevron:first-child svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* Themes like Minimal hide every menu icon; restore them in Pagewise's own menus only. */
+.menu.pagewise-menu .menu-item-icon {
+  display: flex !important;
+  width: auto !important;
+}
+
+.menu.pagewise-menu .menu-item-icon svg {
+  display: block !important;
+  width: var(--icon-size, 16px) !important;
+  height: var(--icon-size, 16px) !important;
+}
+
+/* Hotkey hints in Pagewise menus, right-aligned like Bear's. */
+.menu.pagewise-menu .pagewise-hotkey {
+  margin-left: auto;
+  padding-left: 24px;
+  color: var(--text-faint);
+  font-size: var(--font-smallest, 0.85em);
+}
+
+/* Submenu indicator on callout entries, matching Obsidian's own. */
+.menu.pagewise-menu .pagewise-submenu-arrow {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+  padding-left: 24px;
+  color: var(--text-faint);
+}
+
+.menu.pagewise-menu .pagewise-submenu-arrow svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* ---------- Properties sidebar view ----------
+ * Obsidian's key column claims a fixed share of the pane, wasting the space after
+ * short keys like "type" and "tags". Narrow it in the sidebar view only; the value
+ * column takes the remainder. In-note properties keep Obsidian's own layout.
+ */
+
+.workspace-leaf-content[data-type="file-properties"] .metadata-content {
+  --metadata-label-width: 84px;
+}
+
+.workspace-leaf-content[data-type="file-properties"] .metadata-property-key {
+  width: 84px;
+  min-width: 84px;
+  flex-shrink: 0;
+}
+
+.workspace-leaf-content[data-type="file-properties"] .metadata-property-value {
+  flex-grow: 1;
+}
+
+/* ---------- Collapsed toolbar: a handle at rest, a tray that slides out on hover ---------- */
+
+.pagewise-toolbar.is-expanded {
+  padding: 3px 8px;
+}
+
+.pagewise-toolbar-handle {
+  position: relative;
+}
+
+.pagewise-handle-icon {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.pagewise-toolbar .pagewise-handle-icon.is-chevron {
+  opacity: 0;
+  transform: rotate(-45deg);
+}
+
+.pagewise-toolbar.is-expanded .pagewise-handle-icon.is-chevron {
+  opacity: 1;
+  transform: rotate(0deg);
+}
+
+.pagewise-toolbar.is-expanded .pagewise-handle-icon.is-plus {
+  opacity: 0;
+  transform: rotate(45deg);
+}
+
+/* The 0fr to 1fr grid track animates the tray's width without any measurement. */
+.pagewise-toolbar-reveal {
+  display: grid;
+  grid-template-columns: 0fr;
+  opacity: 0;
+  transition: grid-template-columns 240ms ease, opacity 180ms ease;
+}
+
+.pagewise-toolbar.is-expanded .pagewise-toolbar-reveal {
+  grid-template-columns: 1fr;
+  opacity: 1;
+  transition: grid-template-columns 240ms ease, opacity 220ms ease 60ms;
+}
+
+.pagewise-toolbar-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  overflow: hidden;
+  padding-left: 0;
+  transition: padding-left 240ms ease;
+}
+
+.pagewise-toolbar.is-expanded .pagewise-toolbar-content {
+  padding-left: 6px;
+}
+
+/* ---------- Linked mentions as cards ----------
+ * Card styling for the in-document linked mentions panel, active only while the pane
+ * is paginated; unpaginated panes and the sidebar Backlinks pane keep stock Obsidian.
+ * Layout uses CSS multi-column flow, not grid: Obsidian lazy-renders this panel with
+ * zero-height measurement elements between results, which a grid turns into occupied
+ * cells and stretched rows. Column flow packs the cards and ignores them.
+ * Adapted from the user's backlink-cards.css snippet, 2026-09-18.
+ */
+
+.workspace-leaf-content[data-type="markdown"].pagewise-active .embedded-backlinks .search-result-container,
+.workspace-leaf-content[data-type="markdown"].pagewise-active .embedded-backlinks .search-result-container > .search-results-children {
+  display: block !important;
+  width: 100%;
+  max-width: none;
+}
+
+.workspace-leaf-content[data-type="markdown"].pagewise-active .embedded-backlinks .search-result-container > .search-results-children {
+  columns: 2 !important;
+  column-gap: 14px !important;
+  padding: 8px 0 16px;
+}
+
+/* Each source note = one card; never split across columns */
+.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .search-result {
+  break-inside: avoid;
+  -webkit-column-break-inside: avoid;
+  display: block;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 14px;
+  padding: 12px 14px 14px;
+  margin: 0 0 14px 0 !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.05);
+  transition: box-shadow 140ms ease;
+}
+
+.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .search-result:hover {
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.06), 0 8px 20px rgba(0, 0, 0, 0.09);
+}
+
+/* Source label: small, muted, single line, divider beneath */
+.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .search-result-file-title {
+  font-size: 0.82em;
+  font-weight: 500;
+  color: var(--text-muted);
+  padding: 0 0 8px 0;
+  margin-bottom: 8px;
+  border: none;
+  border-bottom: 1px solid var(--background-modifier-border);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: transparent;
+}
+
+.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .search-result-file-title:hover {
+  background: transparent;
+  color: var(--text-normal);
+}
+
+/* Hide chevron and per-file match count */
+.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .search-result-file-title .collapse-icon,
+.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .search-result-file-title .tree-item-flair-outer {
+  display: none;
+}
+
+.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .search-result-file-title .tree-item-inner {
+  padding-left: 0;
+}
+
+/* Card body */
+.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .search-result-file-matches {
+  padding: 0;
+  margin: 0;
+  box-shadow: none;
+  background: transparent;
+  border: none;
+}
+
+.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .search-result-file-match {
+  font-size: 0.95em;
+  line-height: 1.5;
+  color: var(--text-normal);
+  background: transparent;
+  border: none;
+  border-left: 3px solid var(--color-yellow);
+  border-radius: 0;
+  padding: 2px 0 2px 10px;
+  margin: 0 0 10px 0;
+}
+
+.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .search-result-file-match:last-child {
+  margin-bottom: 0;
+}
+
+.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .search-result-file-match:hover {
+  background: var(--background-secondary);
+  border-radius: 0 6px 6px 0;
+}
+
+/* Link to this note: pill highlight */
+.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .search-result-file-matched-text {
+  background: rgba(var(--color-yellow-rgb), 0.22);
+  border-radius: 4px;
+  padding: 1px 4px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+/* Dark mode */
+.theme-dark .workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .search-result {
+  background: var(--background-primary-alt);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 12px rgba(0, 0, 0, 0.25);
+}
