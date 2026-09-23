@@ -86,8 +86,10 @@
   display: none;
 }
 
-/* Page break spacer: transparent for the fill portion, then paints the ground between sheets. */
-.pagewise-active .pagewise-break {
+/* Page break spacer: transparent for the fill portion, then paints the ground between sheets.
+ * Both spacers anchor their page number (::before); the break also paints the ground (::after). */
+.pagewise-active .pagewise-break,
+.pagewise-active .pagewise-tail {
   position: relative;
   pointer-events: none;
 }
@@ -103,10 +105,6 @@
   box-shadow:
     inset 0 6px 12px -8px rgba(0, 0, 0, 0.35),
     inset 0 -6px 12px -8px rgba(0, 0, 0, 0.35);
-}
-
-.pagewise-active .pagewise-tail {
-  pointer-events: none;
 }
 
 /* Page number, set in the bottom margin of the sheet the spacer closes. */
@@ -130,14 +128,6 @@
 /* The last sheet's number sits in the sizer's own bottom padding. */
 .pagewise-active .pagewise-tail[data-page]::before {
   bottom: calc(var(--pagewise-margin) * -0.5);
-}
-
-.pagewise-active .pagewise-break[data-page] {
-  position: relative;
-}
-
-.pagewise-active .pagewise-tail[data-page] {
-  position: relative;
 }
 
 /* ---------- Live Preview and Source mode (sheet styling only; no page breaks) ---------- */
@@ -165,7 +155,8 @@
   background-color: transparent;
 }
 
-/* PDF export and printing must produce Obsidian's plain baseline output.
+/* ---------- Print and PDF export ----------
+ * PDF export and printing must produce Obsidian's plain baseline output.
  * The exporter renders into a `.print` container that sits outside any
  * `.pagewise-active` pane, so these rules are deliberately unscoped: every
  * sheet treatment is reverted and every Pagewise element is removed from the
@@ -203,8 +194,8 @@
 }
 
 /* ---------- Floating note toolbar ----------
- * Shown on any paginated pane. The formatting glyphs are letterforms styled as the
- * formatting they apply, after Bear's toolbar.
+ * Shown on any paginated pane, after Bear's toolbar: Lucide glyphs in a floating
+ * pill anchored left of the sheet. NoteToolbar builds it; anchor.ts positions it.
  */
 
 .pagewise-has-toolbar {
@@ -306,7 +297,7 @@
   font-size: var(--font-smallest, 0.85em);
 }
 
-/* Submenu indicator on callout entries, matching Obsidian's own. */
+/* Submenu indicator on entries that open a submenu, matching Obsidian's own. */
 .menu.pagewise-menu .pagewise-submenu-arrow {
   display: flex;
   align-items: center;
@@ -318,26 +309,6 @@
 .menu.pagewise-menu .pagewise-submenu-arrow svg {
   width: 12px;
   height: 12px;
-}
-
-/* ---------- Properties sidebar view ----------
- * Obsidian's key column claims a fixed share of the pane, wasting the space after
- * short keys like "type" and "tags". Narrow it in the sidebar view only; the value
- * column takes the remainder. In-note properties keep Obsidian's own layout.
- */
-
-.workspace-leaf-content[data-type="file-properties"] .metadata-content {
-  --metadata-label-width: 84px;
-}
-
-.workspace-leaf-content[data-type="file-properties"] .metadata-property-key {
-  width: 84px;
-  min-width: 84px;
-  flex-shrink: 0;
-}
-
-.workspace-leaf-content[data-type="file-properties"] .metadata-property-value {
-  flex-grow: 1;
 }
 
 /* ---------- Collapsed toolbar: a handle at rest, a tray that slides out on hover ---------- */
@@ -485,6 +456,26 @@
 /* Menus open to the right in vertical mode; the dropdown chevrons point there. */
 .pagewise-toolbar.is-vertical .pagewise-toolbar-button.has-menu > .pagewise-chevron:last-child svg {
   transform: rotate(-90deg);
+}
+
+/* ---------- Properties sidebar view ----------
+ * Obsidian's key column claims a fixed share of the pane, wasting the space after
+ * short keys like "type" and "tags". Narrow it in the sidebar view only; the value
+ * column takes the remainder. In-note properties keep Obsidian's own layout.
+ */
+
+.workspace-leaf-content[data-type="file-properties"] .metadata-content {
+  --metadata-label-width: 84px;
+}
+
+.workspace-leaf-content[data-type="file-properties"] .metadata-property-key {
+  width: 84px;
+  min-width: 84px;
+  flex-shrink: 0;
+}
+
+.workspace-leaf-content[data-type="file-properties"] .metadata-property-value {
+  flex-grow: 1;
 }
 
 /* ---------- Linked mentions as cards ----------

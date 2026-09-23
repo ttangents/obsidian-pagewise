@@ -14,5 +14,5 @@
     "importHelpers": false,
     "lib": ["DOM", "ES2021"]
   },
-  "include": ["src/**/*.ts"]
+  "include": ["src/**/*.ts", "tests/**/*.ts"]
 }

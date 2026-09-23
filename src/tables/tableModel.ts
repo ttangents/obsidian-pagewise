@@ -19,9 +19,9 @@ export interface TableModel {
   indent: string;
 }
 
-/** True when the line can belong to a table block: non-blank with an unescaped pipe. */
+/** True when the line can belong to a table block: it contains a pipe. */
 export function isTableLine(line: string): boolean {
-  return line.trim().length > 0 && splitCells(line).length > 0 && line.includes("|");
+  return line.includes("|");
 }
 
 /** Parses a table block; null unless line 0 is a header and line 1 a delimiter row. */

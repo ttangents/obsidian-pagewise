@@ -1,17 +1,9 @@
 import type { MarkdownView } from "obsidian";
+import { setMetadataCollapsed } from "../obsidianInternals";
 
 const CONTAINER_SELECTOR = ".metadata-container";
 const COLLAPSED_CLASS = "is-collapsed";
 const INDICATOR_SELECTOR = ".metadata-properties-heading .collapse-indicator";
-
-/** The undocumented metadata editor Obsidian attaches to Live Preview views. */
-interface MetadataEditorLike {
-  setCollapse?(collapsed: boolean, animate: boolean): void;
-}
-
-interface ViewWithMetadataEditor extends MarkdownView {
-  metadataEditor?: MetadataEditorLike;
-}
 
 /**
  * Collapses the in-note Properties panel while pagination is on, and restores
@@ -79,11 +71,7 @@ function findContainers(view: MarkdownView): HTMLElement[] {
  * owner, so there the class toggle on container and indicator is the whole truth.
  */
 function setCollapsed(view: MarkdownView, container: HTMLElement, collapsed: boolean): void {
-  const editor = (view as ViewWithMetadataEditor).metadataEditor;
-  if (container.closest(".markdown-source-view") && typeof editor?.setCollapse === "function") {
-    editor.setCollapse(collapsed, false);
-    return;
-  }
+  if (container.closest(".markdown-source-view") && setMetadataCollapsed(view, collapsed)) return;
   container.classList.toggle(COLLAPSED_CLASS, collapsed);
   container.querySelector(INDICATOR_SELECTOR)?.classList.toggle(COLLAPSED_CLASS, collapsed);
 }

@@ -1,13 +1,16 @@
 import { App, MarkdownView, Notice, debounce, type Debouncer } from "obsidian";
 import { Paginator } from "./paginator";
-import { PropertiesCollapser } from "./propertiesCollapser";
+import { PropertiesCollapser } from "../properties/propertiesCollapser";
 import { pageSizeById, resolveMetrics, type PageMetrics } from "./pageSizes";
-import type { PagewiseSettings } from "./settings";
+import type { PagewiseSettings } from "../settings";
+import { markdownViews } from "../workspace";
 
 const ACTIVE_CLASS = "pagewise-active";
 const HIDE_PROPS_CLASS = "pagewise-props-hidden";
 const SIZER_SELECTOR = ".markdown-preview-sizer";
 const RELAYOUT_DELAY_MS = 120;
+/** Page geometry published on <body>; inert until a pane carries ACTIVE_CLASS. */
+const GEOMETRY_VARS = ["--pagewise-page-width", "--pagewise-page-height", "--pagewise-margin", "--pagewise-gap"] as const;
 
 /**
  * Owns which panes are paginated and keeps their layout current. All entry points
@@ -63,7 +66,18 @@ export class PaginationController {
     const view = this.app.workspace.getActiveViewOfType(MarkdownView);
     if (!view) return;
     if (this.settings.scope === "global") {
-      this.settings.globalEnabled ? this.activate(view) : this.deactivate(view);
+      if (!this.settings.globalEnabled) {
+        this.deactivate(view);
+        return;
+      }
+      if (this.active.has(view)) {
+        // Same pane, new note: Obsidian reuses the Properties element, so let the
+        // collapser treat it as unseen, then lay the new note out.
+        this.properties.forget([view]);
+        this.requestLayout();
+        return;
+      }
+      this.activate(view);
       return;
     }
     if (this.active.has(view)) this.deactivate(view);
@@ -106,20 +120,18 @@ export class PaginationController {
     this.requestLayout();
   }
 
+  /** Returns every pane to Obsidian's own view and removes all Pagewise state from the DOM. */
   dispose(): void {
     this.relayout.cancel();
     this.cancelPendingFrame();
     this.suspended = false;
     [...this.active].forEach((view) => this.deactivate(view));
+    GEOMETRY_VARS.forEach((name) => document.body.style.removeProperty(name));
   }
 
   /** Brings every open Markdown pane in line with the persisted global state. */
   private syncGlobal(): void {
-    const views = this.app.workspace
-      .getLeavesOfType("markdown")
-      .map((leaf) => leaf.view)
-      .filter((view): view is MarkdownView => view instanceof MarkdownView);
-    views.forEach((view) => (this.settings.globalEnabled ? this.activate(view) : this.deactivate(view)));
+    markdownViews(this.app).forEach((view) => (this.settings.globalEnabled ? this.activate(view) : this.deactivate(view)));
   }
 
   private activate(view: MarkdownView): void {
@@ -167,11 +179,9 @@ export class PaginationController {
 
   /** Geometry lives on <body> as CSS variables; they are inert until a pane carries ACTIVE_CLASS. */
   private publishGeometry(): void {
-    const { style } = document.body;
-    style.setProperty("--pagewise-page-width", `${this.metrics.pageWidthPx}px`);
-    style.setProperty("--pagewise-page-height", `${this.metrics.pageHeightPx}px`);
-    style.setProperty("--pagewise-margin", `${this.metrics.marginPx}px`);
-    style.setProperty("--pagewise-gap", `${this.metrics.gapPx}px`);
+    const { pageWidthPx, pageHeightPx, marginPx, gapPx } = this.metrics;
+    const values = [pageWidthPx, pageHeightPx, marginPx, gapPx];
+    GEOMETRY_VARS.forEach((name, i) => document.body.style.setProperty(name, `${values[i]}px`));
   }
 
   private paginatorFor(sizer: HTMLElement): Paginator {
