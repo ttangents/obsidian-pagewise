@@ -24,6 +24,9 @@ const SEPARATOR_ICON = "pagewise-separator";
 const EXPANDED_CLASS = "is-expanded";
 const VERTICAL_CLASS = "is-vertical";
 const COLLAPSE_DELAY_MS = 5000;
+/** The pane's two content views; only the one for the current mode is displayed. */
+const CONTENT_VIEW_SELECTOR = ":scope > .markdown-source-view, :scope > .markdown-reading-view";
+const TOOLBAR_TOP_INSET_PX = 10;
 
 /** Obsidian's Menu and MenuItem expose their DOM privately; typed here, guarded at use. */
 interface MenuWithDom extends Menu {
@@ -173,8 +176,15 @@ export class NoteToolbar {
     const handle = bar.querySelector<HTMLElement>(".pagewise-toolbar-handle");
     const collapsedWidth = (handle?.offsetWidth ?? bar.offsetWidth) + 6;
     bar.style.left = `${Math.max(8, pageLeft - collapsedWidth - 12)}px`;
+    bar.style.top = `${contentTop(host) + TOOLBAR_TOP_INSET_PX}px`;
   }
 
+  /**
+   * Re-anchors on pane resizes and on resizes of the note's content views. Obsidian's
+   * find bar (Ctrl/Cmd-F) sits in the pane above the content views and shrinks them
+   * when it opens, so watching their size catches it opening and closing, as well as
+   * switches between reading and editing mode.
+   */
   private observeHost(host: HTMLElement): void {
     if (this.hostObservers.has(host)) return;
     const observer = new ResizeObserver(() => {
@@ -182,6 +192,7 @@ export class NoteToolbar {
       if (bar instanceof HTMLElement) this.position(bar, host);
     });
     observer.observe(host);
+    host.querySelectorAll(CONTENT_VIEW_SELECTOR).forEach((el) => observer.observe(el));
     this.hostObservers.set(host, observer);
   }
 
@@ -654,6 +665,15 @@ export class NoteToolbar {
       .map((leaf) => leaf.view)
       .filter((view): view is MarkdownView => view instanceof MarkdownView);
   }
+}
+
+/**
+ * Offset from the pane's top to the displayed content view. It is 0 until something
+ * such as the find bar sits above the content, and then the height of that element.
+ */
+function contentTop(host: HTMLElement): number {
+  const views = Array.from(host.querySelectorAll<HTMLElement>(CONTENT_VIEW_SELECTOR));
+  return views.find((el) => el.offsetParent !== null)?.offsetTop ?? 0;
 }
 
 /** Picks the first icon name the running Lucide bundle actually has; older bundles lag renames. */

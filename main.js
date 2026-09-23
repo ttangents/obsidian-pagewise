@@ -656,6 +656,8 @@ var SEPARATOR_ICON = "pagewise-separator";
 var EXPANDED_CLASS = "is-expanded";
 var VERTICAL_CLASS = "is-vertical";
 var COLLAPSE_DELAY_MS = 5e3;
+var CONTENT_VIEW_SELECTOR = ":scope > .markdown-source-view, :scope > .markdown-reading-view";
+var TOOLBAR_TOP_INSET_PX = 10;
 function registerCustomIcons() {
   HEADING_LEVELS.forEach((level) => {
     (0, import_obsidian2.addIcon)(
@@ -750,7 +752,14 @@ var NoteToolbar = class {
     const handle = bar.querySelector(".pagewise-toolbar-handle");
     const collapsedWidth = (handle?.offsetWidth ?? bar.offsetWidth) + 6;
     bar.style.left = `${Math.max(8, pageLeft - collapsedWidth - 12)}px`;
+    bar.style.top = `${contentTop(host) + TOOLBAR_TOP_INSET_PX}px`;
   }
+  /**
+   * Re-anchors on pane resizes and on resizes of the note's content views. Obsidian's
+   * find bar (Ctrl/Cmd-F) sits in the pane above the content views and shrinks them
+   * when it opens, so watching their size catches it opening and closing, as well as
+   * switches between reading and editing mode.
+   */
   observeHost(host) {
     if (this.hostObservers.has(host)) return;
     const observer = new ResizeObserver(() => {
@@ -758,6 +767,7 @@ var NoteToolbar = class {
       if (bar instanceof HTMLElement) this.position(bar, host);
     });
     observer.observe(host);
+    host.querySelectorAll(CONTENT_VIEW_SELECTOR).forEach((el) => observer.observe(el));
     this.hostObservers.set(host, observer);
   }
   /** A closed pane leaves a detached host; drop its observer so the map cannot grow without bound. */
@@ -1192,6 +1202,10 @@ ${body}`);
     return this.app.workspace.getLeavesOfType("markdown").map((leaf) => leaf.view).filter((view) => view instanceof import_obsidian2.MarkdownView);
   }
 };
+function contentTop(host) {
+  const views = Array.from(host.querySelectorAll(CONTENT_VIEW_SELECTOR));
+  return views.find((el) => el.offsetParent !== null)?.offsetTop ?? 0;
+}
 function resolveIcon(icons) {
   return icons.find((name) => (0, import_obsidian2.getIcon)(name)) ?? icons[icons.length - 1];
 }
