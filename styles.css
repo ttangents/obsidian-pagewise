@@ -442,10 +442,15 @@
   transition: grid-template-rows 240ms ease, opacity 220ms ease 60ms;
 }
 
+/* The tray only needs clipping along its animated axis. overflow: clip (unlike hidden)
+ * lets the other axis stay visible, so the menu chevrons can hang past the buttons.
+ */
 .pagewise-toolbar.is-vertical .pagewise-toolbar-content {
   flex-direction: column;
   min-width: unset;
   min-height: 0;
+  overflow-x: visible;
+  overflow-y: clip;
   padding-left: 0;
   padding-top: 0;
   transition: padding-top 240ms ease;
