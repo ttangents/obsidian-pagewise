@@ -410,10 +410,16 @@
 
 .pagewise-toolbar.is-vertical {
   flex-direction: column;
+  transition: padding 240ms ease, margin-left 240ms ease;
 }
 
+/* Every control centers on one vertical axis: the collapsed handle's center. The
+ * wider side padding makes room for the menu chevrons; the matching negative margin
+ * keeps that axis from shifting when the tray opens.
+ */
 .pagewise-toolbar.is-vertical.is-expanded {
-  padding: 3px 3px 8px;
+  padding: 3px 7px 8px;
+  margin-left: -4px;
 }
 
 .pagewise-toolbar.is-vertical .pagewise-handle-icon.is-chevron {
@@ -452,6 +458,23 @@
 
 .pagewise-toolbar.is-vertical .pagewise-toolbar-format {
   flex-direction: column;
+}
+
+/* Menu buttons take the same footprint as plain buttons, so their glyphs sit on the
+ * shared axis; the chevron hangs just right of the glyph, outside the flow.
+ */
+.pagewise-toolbar.is-vertical .pagewise-toolbar-button.has-menu {
+  position: relative;
+  width: 26px;
+  padding: 0;
+  grid-auto-flow: row;
+}
+
+.pagewise-toolbar.is-vertical .pagewise-toolbar-button.has-menu > .pagewise-chevron:last-child {
+  position: absolute;
+  top: 50%;
+  left: calc(50% + 8px);
+  transform: translateY(-50%);
 }
 
 /* Menus open to the right in vertical mode; the dropdown chevrons point there. */
