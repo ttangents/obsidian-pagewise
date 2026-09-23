@@ -657,6 +657,7 @@ var EXPANDED_CLASS = "is-expanded";
 var VERTICAL_CLASS = "is-vertical";
 var COLLAPSE_DELAY_MS = 5e3;
 var CONTENT_VIEW_SELECTOR = ":scope > .markdown-source-view, :scope > .markdown-reading-view";
+var FIND_BAR_SELECTOR = ".document-search-container";
 var TOOLBAR_TOP_INSET_PX = 10;
 function registerCustomIcons() {
   HEADING_LEVELS.forEach((level) => {
@@ -752,23 +753,37 @@ var NoteToolbar = class {
     const handle = bar.querySelector(".pagewise-toolbar-handle");
     const collapsedWidth = (handle?.offsetWidth ?? bar.offsetWidth) + 6;
     bar.style.left = `${Math.max(8, pageLeft - collapsedWidth - 12)}px`;
-    bar.style.top = `${contentTop(host) + TOOLBAR_TOP_INSET_PX}px`;
+    bar.style.top = `${findBarBottom(host, bar) + TOOLBAR_TOP_INSET_PX}px`;
   }
   /**
-   * Re-anchors on pane resizes and on resizes of the note's content views. Obsidian's
-   * find bar (Ctrl/Cmd-F) sits in the pane above the content views and shrinks them
-   * when it opens, so watching their size catches it opening and closing, as well as
-   * switches between reading and editing mode.
+   * Re-anchors on pane resizes and whenever the find bar opens, closes, or changes
+   * height (find vs. find-and-replace). Obsidian creates the find bar lazily, so a
+   * child-list watch on the pane and its two content views picks up its arrival and
+   * adds it to the resize watch; showing or hiding it then registers as a resize.
+   * The child-list watch is shallow, so typing in the editor never triggers it.
    */
   observeHost(host) {
     if (this.hostObservers.has(host)) return;
-    const observer = new ResizeObserver(() => {
+    const reposition = () => {
       const bar = host.querySelector(`:scope > .${TOOLBAR_CLASS}`);
       if (bar instanceof HTMLElement) this.position(bar, host);
+    };
+    const resize = new ResizeObserver(reposition);
+    const watchFindBars = () => host.querySelectorAll(FIND_BAR_SELECTOR).forEach((el) => resize.observe(el));
+    resize.observe(host);
+    watchFindBars();
+    const mutation = new MutationObserver(() => {
+      watchFindBars();
+      reposition();
     });
-    observer.observe(host);
-    host.querySelectorAll(CONTENT_VIEW_SELECTOR).forEach((el) => observer.observe(el));
-    this.hostObservers.set(host, observer);
+    mutation.observe(host, { childList: true });
+    host.querySelectorAll(CONTENT_VIEW_SELECTOR).forEach((el) => mutation.observe(el, { childList: true }));
+    this.hostObservers.set(host, {
+      disconnect: () => {
+        resize.disconnect();
+        mutation.disconnect();
+      }
+    });
   }
   /** A closed pane leaves a detached host; drop its observer so the map cannot grow without bound. */
   pruneClosedHosts() {
@@ -1202,9 +1217,20 @@ ${body}`);
     return this.app.workspace.getLeavesOfType("markdown").map((leaf) => leaf.view).filter((view) => view instanceof import_obsidian2.MarkdownView);
   }
 };
-function contentTop(host) {
-  const views = Array.from(host.querySelectorAll(CONTENT_VIEW_SELECTOR));
-  return views.find((el) => el.offsetParent !== null)?.offsetTop ?? 0;
+function findBarBottom(host, bar) {
+  const hostRect = host.getBoundingClientRect();
+  const barLeft = parseFloat(bar.style.left) || 0;
+  const barRight = barLeft + bar.offsetWidth;
+  let bottom = 0;
+  host.querySelectorAll(FIND_BAR_SELECTOR).forEach((el) => {
+    const rect = el.getBoundingClientRect();
+    if (rect.height === 0) return;
+    const left = rect.left - hostRect.left;
+    const right = rect.right - hostRect.left;
+    if (right <= barLeft || left >= barRight) return;
+    bottom = Math.max(bottom, rect.bottom - hostRect.top);
+  });
+  return bottom;
 }
 function resolveIcon(icons) {
   return icons.find((name) => (0, import_obsidian2.getIcon)(name)) ?? icons[icons.length - 1];
