@@ -461,6 +461,31 @@ function hasPrintContainer() {
   return document.body.querySelector(":scope > .print") !== null;
 }
 
+// src/printMargins.ts
+var STYLE_ID = "pagewise-print-margins";
+var PrintMargins = class {
+  /** Applies the given margin in millimetres to every side, or removes the rule when null. */
+  apply(marginMm) {
+    if (marginMm === null) {
+      this.dispose();
+      return;
+    }
+    let style = document.getElementById(STYLE_ID);
+    if (!style) {
+      style = document.createElement("style");
+      style.id = STYLE_ID;
+      document.head.append(style);
+    }
+    style.textContent = pageRule(marginMm);
+  }
+  dispose() {
+    document.getElementById(STYLE_ID)?.remove();
+  }
+};
+function pageRule(marginMm) {
+  return `@page { margin: ${marginMm}mm; }`;
+}
+
 // src/properties/propertiesSidebar.ts
 var PROPERTIES_VIEW_TYPE = "file-properties";
 var PropertiesSidebar = class {
@@ -488,14 +513,16 @@ var PropertiesSidebar = class {
 };
 
 // src/settings.ts
+var WORD_MARGIN_MM = 25.4;
 var DEFAULT_SETTINGS = {
   scope: "note",
   globalEnabled: false,
   pageSize: "a4",
-  marginMm: 25.4,
+  marginMm: WORD_MARGIN_MM,
   gapPx: 24,
   propertiesMode: "sidebar",
-  toolbarDirection: "horizontal"
+  toolbarDirection: "horizontal",
+  pdfMargins: "word"
 };
 function normalizeSettings(raw) {
   const data = typeof raw === "object" && raw !== null ? raw : {};
@@ -509,7 +536,8 @@ function normalizeSettings(raw) {
     marginMm: number(data.marginMm, 0, 100, d.marginMm),
     gapPx: number(data.gapPx, 0, 200, d.gapPx),
     propertiesMode: oneOf(data.propertiesMode, ["sidebar", "collapse", "none"], d.propertiesMode),
-    toolbarDirection: oneOf(data.toolbarDirection, ["horizontal", "vertical"], d.toolbarDirection)
+    toolbarDirection: oneOf(data.toolbarDirection, ["horizontal", "vertical"], d.toolbarDirection),
+    pdfMargins: oneOf(data.pdfMargins, ["word", "page", "obsidian"], d.pdfMargins)
   };
 }
 
@@ -536,7 +564,7 @@ var PagewiseSettingTab = class extends import_obsidian3.PluginSettingTab {
         await this.plugin.updateSettings({ pageSize: value });
       });
     });
-    new import_obsidian3.Setting(containerEl).setName("Margins (mm)").setDesc("Applied to all four sides. 25.4 mm matches the Word default of one inch.").addSlider(
+    new import_obsidian3.Setting(containerEl).setName("Margins (mm)").setDesc("Applied to all four sides of the on-screen sheet. 25.4 mm matches the Word default of one inch.").addSlider(
       (slider) => slider.setLimits(10, 40, 1).setDynamicTooltip().setValue(this.plugin.settings.marginMm).onChange(async (value) => {
         await this.plugin.updateSettings({ marginMm: value });
       })
@@ -551,6 +579,13 @@ var PagewiseSettingTab = class extends import_obsidian3.PluginSettingTab {
     new import_obsidian3.Setting(containerEl).setName("Gap between sheets (px)").addSlider(
       (slider) => slider.setLimits(0, 64, 4).setDynamicTooltip().setValue(this.plugin.settings.gapPx).onChange(async (value) => {
         await this.plugin.updateSettings({ gapPx: value });
+      })
+    );
+    new import_obsidian3.Setting(containerEl).setName("PDF export margins").setDesc(
+      "Margins on every side of exported and printed PDFs. Pagewise's margins take effect when the export dialog's Margin option is Default."
+    ).addDropdown(
+      (dropdown) => dropdown.addOption("word", "Word default (25.4 mm)").addOption("page", "Same as page margins").addOption("obsidian", "Obsidian default").setValue(this.plugin.settings.pdfMargins).onChange(async (value) => {
+        await this.plugin.updateSettings({ pdfMargins: value });
       })
     );
     new import_obsidian3.Setting(containerEl).setName("Toolbar expansion").setDesc("Which way the collapsed toolbar opens its tray of controls.").addDropdown(
@@ -1340,6 +1375,10 @@ function iconSpan(className, icon) {
 
 // src/main.ts
 var PagewisePlugin = class extends import_obsidian7.Plugin {
+  constructor() {
+    super(...arguments);
+    this.printMargins = new PrintMargins();
+  }
   async onload() {
     this.settings = normalizeSettings(await this.loadData());
     this.controller = new PaginationController(this.app, this.settings);
@@ -1356,6 +1395,7 @@ var PagewisePlugin = class extends import_obsidian7.Plugin {
       }
     });
     this.printGuard.install((teardown) => this.register(teardown));
+    this.applyPrintMargins();
     this.addCommand({
       id: "toggle-paginated-view",
       name: "Toggle paginated view for this note",
@@ -1372,6 +1412,7 @@ var PagewisePlugin = class extends import_obsidian7.Plugin {
   onunload() {
     this.controller.dispose();
     this.toolbar.dispose();
+    this.printMargins.dispose();
   }
   /** Routes the toggle by scope: one ephemeral pane, or the persisted every-note state. */
   async toggle() {
@@ -1387,7 +1428,12 @@ var PagewisePlugin = class extends import_obsidian7.Plugin {
     this.settings = normalizeSettings({ ...this.settings, ...patch });
     await this.saveData(this.settings);
     this.controller.applySettings(this.settings);
+    this.applyPrintMargins();
     this.syncToolbar();
+  }
+  applyPrintMargins() {
+    const { pdfMargins, marginMm } = this.settings;
+    this.printMargins.apply(pdfMargins === "word" ? WORD_MARGIN_MM : pdfMargins === "page" ? marginMm : null);
   }
   /** Every event that can change a paginated note's layout or the set of panes. */
   registerLayoutTriggers() {

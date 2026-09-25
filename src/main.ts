@@ -1,8 +1,9 @@
 import { Plugin } from "obsidian";
 import { PaginationController } from "./pagination/controller";
 import { PrintGuard } from "./printGuard";
+import { PrintMargins } from "./printMargins";
 import { PropertiesSidebar } from "./properties/propertiesSidebar";
-import { normalizeSettings, type PagewiseSettings } from "./settings";
+import { WORD_MARGIN_MM, normalizeSettings, type PagewiseSettings } from "./settings";
 import { PagewiseSettingTab, type SettingsHost } from "./settingsTab";
 import { NoteToolbar } from "./toolbar/noteToolbar";
 
@@ -16,6 +17,7 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
   private controller!: PaginationController;
   private toolbar!: NoteToolbar;
   private printGuard!: PrintGuard;
+  private readonly printMargins = new PrintMargins();
 
   async onload(): Promise<void> {
     this.settings = normalizeSettings(await this.loadData());
@@ -33,6 +35,7 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
       },
     });
     this.printGuard.install((teardown) => this.register(teardown));
+    this.applyPrintMargins();
 
     this.addCommand({
       id: "toggle-paginated-view",
@@ -51,6 +54,7 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
   onunload(): void {
     this.controller.dispose();
     this.toolbar.dispose();
+    this.printMargins.dispose();
   }
 
   /** Routes the toggle by scope: one ephemeral pane, or the persisted every-note state. */
@@ -68,7 +72,13 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
     this.settings = normalizeSettings({ ...this.settings, ...patch });
     await this.saveData(this.settings);
     this.controller.applySettings(this.settings);
+    this.applyPrintMargins();
     this.syncToolbar();
+  }
+
+  private applyPrintMargins(): void {
+    const { pdfMargins, marginMm } = this.settings;
+    this.printMargins.apply(pdfMargins === "word" ? WORD_MARGIN_MM : pdfMargins === "page" ? marginMm : null);
   }
 
   /** Every event that can change a paginated note's layout or the set of panes. */

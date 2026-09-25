@@ -17,3 +17,9 @@ test("falls back to defaults for invalid or missing values", () => {
   assert.deepEqual(settings, DEFAULT_SETTINGS);
   assert.deepEqual(normalizeSettings(null), DEFAULT_SETTINGS);
 });
+
+test("PDF margins default to Word's one inch and accept only known choices", () => {
+  assert.equal(DEFAULT_SETTINGS.pdfMargins, "word");
+  assert.equal(normalizeSettings({ pdfMargins: "page" }).pdfMargins, "page");
+  assert.equal(normalizeSettings({ pdfMargins: "huge" }).pdfMargins, "word");
+});

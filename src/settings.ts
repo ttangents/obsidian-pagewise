@@ -8,6 +8,10 @@ import { PAGE_SIZES, type PageSizeId } from "./pagination/pageSizes";
 export type ToggleScope = "note" | "global";
 export type PropertiesMode = "sidebar" | "collapse" | "none";
 export type ToolbarDirection = "horizontal" | "vertical";
+export type PdfMargins = "word" | "page" | "obsidian";
+
+/** Word's default margin on every side: one inch. */
+export const WORD_MARGIN_MM = 25.4;
 
 export interface PagewiseSettings {
   /** "note": ephemeral, per focused note. "global": persistent, all notes at once. */
@@ -21,16 +25,19 @@ export interface PagewiseSettings {
   propertiesMode: PropertiesMode;
   /** Which way the collapsed toolbar expands: a horizontal tray or a vertical one. */
   toolbarDirection: ToolbarDirection;
+  /** Exported PDF margins: Word's one inch, the on-screen page margins, or Obsidian's own. */
+  pdfMargins: PdfMargins;
 }
 
 export const DEFAULT_SETTINGS: PagewiseSettings = {
   scope: "note",
   globalEnabled: false,
   pageSize: "a4",
-  marginMm: 25.4,
+  marginMm: WORD_MARGIN_MM,
   gapPx: 24,
   propertiesMode: "sidebar",
   toolbarDirection: "horizontal",
+  pdfMargins: "word",
 };
 
 /**
@@ -54,5 +61,6 @@ export function normalizeSettings(raw: unknown): PagewiseSettings {
     gapPx: number(data.gapPx, 0, 200, d.gapPx),
     propertiesMode: oneOf(data.propertiesMode, ["sidebar", "collapse", "none"], d.propertiesMode),
     toolbarDirection: oneOf(data.toolbarDirection, ["horizontal", "vertical"], d.toolbarDirection),
+    pdfMargins: oneOf(data.pdfMargins, ["word", "page", "obsidian"], d.pdfMargins),
   };
 }
