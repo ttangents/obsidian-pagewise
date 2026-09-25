@@ -3,7 +3,7 @@ import { PaginationController } from "./pagination/controller";
 import { PrintGuard } from "./printGuard";
 import { PrintMargins } from "./printMargins";
 import { PropertiesSidebar } from "./properties/propertiesSidebar";
-import { WORD_MARGIN_MM, normalizeSettings, type PagewiseSettings } from "./settings";
+import { normalizeSettings, type PagewiseSettings } from "./settings";
 import { PagewiseSettingTab, type SettingsHost } from "./settingsTab";
 import { NoteToolbar } from "./toolbar/noteToolbar";
 
@@ -77,8 +77,8 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
   }
 
   private applyPrintMargins(): void {
-    const { pdfMargins, marginMm } = this.settings;
-    this.printMargins.apply(pdfMargins === "word" ? WORD_MARGIN_MM : pdfMargins === "page" ? marginMm : null);
+    const { pdfMargins, pdfMarginMm, marginMm } = this.settings;
+    this.printMargins.apply(pdfMargins === "custom" ? pdfMarginMm : pdfMargins === "page" ? marginMm : null);
   }
 
   /** Every event that can change a paginated note's layout or the set of panes. */

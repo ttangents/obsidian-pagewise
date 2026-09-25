@@ -8,7 +8,7 @@ import { PAGE_SIZES, type PageSizeId } from "./pagination/pageSizes";
 export type ToggleScope = "note" | "global";
 export type PropertiesMode = "sidebar" | "collapse" | "none";
 export type ToolbarDirection = "horizontal" | "vertical";
-export type PdfMargins = "word" | "page" | "obsidian";
+export type PdfMargins = "custom" | "page" | "obsidian";
 
 /** Word's default margin on every side: one inch. */
 export const WORD_MARGIN_MM = 25.4;
@@ -25,8 +25,10 @@ export interface PagewiseSettings {
   propertiesMode: PropertiesMode;
   /** Which way the collapsed toolbar expands: a horizontal tray or a vertical one. */
   toolbarDirection: ToolbarDirection;
-  /** Exported PDF margins: Word's one inch, the on-screen page margins, or Obsidian's own. */
+  /** Exported PDF margins: pdfMarginMm, the on-screen page margins, or Obsidian's own. */
   pdfMargins: PdfMargins;
+  /** The PDF margin on every side when pdfMargins is "custom". */
+  pdfMarginMm: number;
 }
 
 export const DEFAULT_SETTINGS: PagewiseSettings = {
@@ -37,7 +39,8 @@ export const DEFAULT_SETTINGS: PagewiseSettings = {
   gapPx: 24,
   propertiesMode: "sidebar",
   toolbarDirection: "horizontal",
-  pdfMargins: "word",
+  pdfMargins: "custom",
+  pdfMarginMm: WORD_MARGIN_MM,
 };
 
 /**
@@ -61,6 +64,8 @@ export function normalizeSettings(raw: unknown): PagewiseSettings {
     gapPx: number(data.gapPx, 0, 200, d.gapPx),
     propertiesMode: oneOf(data.propertiesMode, ["sidebar", "collapse", "none"], d.propertiesMode),
     toolbarDirection: oneOf(data.toolbarDirection, ["horizontal", "vertical"], d.toolbarDirection),
-    pdfMargins: oneOf(data.pdfMargins, ["word", "page", "obsidian"], d.pdfMargins),
+    // "word" was 0.22.0's name for a fixed one-inch margin; it maps to custom.
+    pdfMargins: data.pdfMargins === "word" ? "custom" : oneOf(data.pdfMargins, ["custom", "page", "obsidian"], d.pdfMargins),
+    pdfMarginMm: number(data.pdfMarginMm, 0, 100, d.pdfMarginMm),
   };
 }

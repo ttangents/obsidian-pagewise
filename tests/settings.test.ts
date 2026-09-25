@@ -18,8 +18,14 @@ test("falls back to defaults for invalid or missing values", () => {
   assert.deepEqual(normalizeSettings(null), DEFAULT_SETTINGS);
 });
 
-test("PDF margins default to Word's one inch and accept only known choices", () => {
-  assert.equal(DEFAULT_SETTINGS.pdfMargins, "word");
+test("PDF margins default to a custom one inch and accept only known choices", () => {
+  assert.equal(DEFAULT_SETTINGS.pdfMargins, "custom");
+  assert.equal(DEFAULT_SETTINGS.pdfMarginMm, 25.4);
   assert.equal(normalizeSettings({ pdfMargins: "page" }).pdfMargins, "page");
-  assert.equal(normalizeSettings({ pdfMargins: "huge" }).pdfMargins, "word");
+  assert.equal(normalizeSettings({ pdfMargins: "huge" }).pdfMargins, "custom");
+  assert.equal(normalizeSettings({ pdfMarginMm: 18 }).pdfMarginMm, 18);
+});
+
+test("0.22.0's fixed Word margin carries over as a custom margin", () => {
+  assert.equal(normalizeSettings({ pdfMargins: "word" }).pdfMargins, "custom");
 });

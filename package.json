@@ -1,6 +1,6 @@
 {
   "name": "pagewise",
-  "version": "0.22.0",
+  "version": "0.22.1",
   "description": "Toggle a note between the default view and a paginated, word-processor style page layout that honors the active theme.",
   "main": "main.js",
   "scripts": {

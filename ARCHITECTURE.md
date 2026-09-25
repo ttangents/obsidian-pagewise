@@ -10,7 +10,7 @@
 | `obsidianInternals.ts` | Every undocumented Obsidian API Pagewise uses, each behind a guarded accessor. |
 | `workspace.ts` | Shared workspace queries. |
 | `printGuard.ts` | Detects print and PDF export; brackets it with suspend and resume. |
-| `printMargins.ts` | The `@page` margin rule for exported and printed PDFs (Word default, page margins, or Obsidian's own). |
+| `printMargins.ts` | The `@page` margin rule for exported and printed PDFs (a custom margin, the page margins, or Obsidian's own). |
 | `pagination/` | `layoutEngine` (pure page-break math), `pageSizes` (pure geometry), `paginator` (writes spacers into one preview), `controller` (which panes are paginated, debounced layout, suspend and resume). |
 | `properties/` | In-note Properties collapse, and the on-demand Properties sidebar toggle. |
 | `tables/` | `tableModel` (pure Markdown table parse, transform, serialize) and `tableEditor` (finds the table under the cursor and writes edits back). |

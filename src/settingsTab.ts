@@ -91,14 +91,30 @@ export class PagewiseSettingTab extends PluginSettingTab {
       )
       .addDropdown((dropdown) =>
         dropdown
-          .addOption("word", "Word default (25.4 mm)")
+          .addOption("custom", "Set below")
           .addOption("page", "Same as page margins")
           .addOption("obsidian", "Obsidian default")
           .setValue(this.plugin.settings.pdfMargins)
           .onChange(async (value) => {
             await this.plugin.updateSettings({ pdfMargins: value as PdfMargins });
+            this.display();
           })
       );
+
+    if (this.plugin.settings.pdfMargins === "custom") {
+      new Setting(containerEl)
+        .setName("PDF margin (mm)")
+        .setDesc("25.4 mm matches the Word default of one inch.")
+        .addSlider((slider) =>
+          slider
+            .setLimits(5, 40, 1)
+            .setDynamicTooltip()
+            .setValue(this.plugin.settings.pdfMarginMm)
+            .onChange(async (value) => {
+              await this.plugin.updateSettings({ pdfMarginMm: value });
+            })
+        );
+    }
 
     new Setting(containerEl)
       .setName("Toolbar expansion")
