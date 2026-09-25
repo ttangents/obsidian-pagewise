@@ -157,17 +157,15 @@
 
 /* ---------- Print and PDF export ----------
  * PDF export and printing must produce Obsidian's plain baseline output.
- * The exporter renders into a `.print` container that sits outside any
- * `.pagewise-active` pane, so these rules are deliberately unscoped: every
- * sheet treatment is reverted and every Pagewise element is removed from the
- * print flow, wherever the exporter's markup happens to carry them.
+ * These rules only undo Pagewise's own styling. They must never touch the
+ * exporter's `.print` container or any other Obsidian element: Obsidian sets
+ * the PDF's margins and text width there, and overriding them removes the
+ * margins from every export (the 0.18.0 regression, fixed in 0.21.1).
  */
 @media print {
   .pagewise-active .markdown-preview-view,
   .pagewise-active .markdown-preview-view .markdown-preview-sizer,
-  .pagewise-active .markdown-source-view.mod-cm6 > .cm-editor > .cm-scroller > .cm-sizer,
-  .print .markdown-preview-view,
-  .print .markdown-preview-sizer {
+  .pagewise-active .markdown-source-view.mod-cm6 > .cm-editor > .cm-scroller > .cm-sizer {
     background-color: unset !important;
     box-shadow: none !important;
     width: auto !important;
