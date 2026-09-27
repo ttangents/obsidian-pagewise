@@ -15,8 +15,7 @@ const GEOMETRY_VARS = ["--pagewise-page-width", "--pagewise-page-height", "--pag
 /**
  * Owns which panes are paginated and keeps their layout current. All entry points
  * funnel into one debounced layout pass, so bursts of render, resize, and metadata
- * events cost one re-layout. While suspended (print or PDF export in progress) the
- * controller does no DOM work at all: no measurement, no mutation, no observation.
+ * events cost one re-layout.
  */
 export class PaginationController {
   private readonly active = new Set<MarkdownView>();
@@ -25,7 +24,6 @@ export class PaginationController {
   private readonly properties = new PropertiesCollapser();
   private readonly relayout: Debouncer<[], void>;
   private metrics: PageMetrics;
-  private suspended = false;
   private pendingFrame: number | null = null;
 
   constructor(
@@ -90,41 +88,13 @@ export class PaginationController {
 
   /** Schedules a debounced re-layout of all active panes; safe from any render or resize event. */
   requestLayout(): void {
-    if (this.suspended) return;
     if (this.active.size > 0) this.relayout();
-  }
-
-  /**
-   * Halts every source of DOM work for the duration of a print or PDF export:
-   * cancels the debounced pass and any pending animation frame, disconnects the
-   * resize observers, and strips the page spacers so the exporter sees the note
-   * in its natural flow. Pane activation state is kept for resume(). Idempotent.
-   */
-  suspend(): void {
-    if (this.suspended) return;
-    this.suspended = true;
-    this.relayout.cancel();
-    this.cancelPendingFrame();
-    this.observers.forEach((observer) => observer.disconnect());
-    this.observers.clear();
-    this.active.forEach((view) => {
-      const sizer = this.sizerOf(view);
-      if (sizer) this.paginators.get(sizer)?.clear();
-    });
-  }
-
-  /** Rebuilds every paginated pane after a print or PDF export ends. Idempotent. */
-  resume(): void {
-    if (!this.suspended) return;
-    this.suspended = false;
-    this.requestLayout();
   }
 
   /** Returns every pane to Obsidian's own view and removes all Pagewise state from the DOM. */
   dispose(): void {
     this.relayout.cancel();
     this.cancelPendingFrame();
-    this.suspended = false;
     [...this.active].forEach((view) => this.deactivate(view));
     GEOMETRY_VARS.forEach((name) => document.body.style.removeProperty(name));
   }
@@ -154,9 +124,8 @@ export class PaginationController {
   }
 
   private layoutActiveViews(): void {
-    if (this.suspended) return;
     this.pruneClosedViews();
-    const views = [...this.active].filter((view) => !view.containerEl.closest(".print"));
+    const views = [...this.active];
     if (this.settings.propertiesMode === "collapse" && this.properties.collapse(views)) {
       this.pendingFrame = requestAnimationFrame(() => {
         this.pendingFrame = null;

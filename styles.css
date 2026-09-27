@@ -155,42 +155,6 @@
   background-color: transparent;
 }
 
-/* ---------- Print and PDF export ----------
- * PDF export and printing must produce Obsidian's plain baseline output.
- * These rules only undo Pagewise's own styling. They must never touch the
- * exporter's `.print` container or any other Obsidian element: Obsidian sets
- * the PDF's margins and text width there, and overriding them removes the
- * margins from every export (the 0.18.0 regression, fixed in 0.21.1).
- */
-@media print {
-  .pagewise-active .markdown-preview-view,
-  .pagewise-active .markdown-preview-view .markdown-preview-sizer,
-  .pagewise-active .markdown-source-view.mod-cm6 > .cm-editor > .cm-scroller > .cm-sizer {
-    background-color: unset !important;
-    box-shadow: none !important;
-    width: auto !important;
-    max-width: unset !important;
-    min-height: unset !important;
-    margin: unset !important;
-    padding: unset !important;
-  }
-
-  .pagewise-break,
-  .pagewise-tail {
-    display: none !important;
-    height: 0 !important;
-  }
-
-  .pagewise-break::after,
-  .pagewise-tail::after {
-    content: none !important;
-  }
-
-  .pagewise-toolbar {
-    display: none !important;
-  }
-}
-
 /* ---------- Floating note toolbar ----------
  * Shown on any paginated pane, after Bear's toolbar: Lucide glyphs in a floating
  * pill anchored left of the sheet. NoteToolbar builds it; anchor.ts positions it.

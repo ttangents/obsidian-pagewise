@@ -234,7 +234,6 @@ var PaginationController = class {
     this.paginators = /* @__PURE__ */ new WeakMap();
     this.observers = /* @__PURE__ */ new Map();
     this.properties = new PropertiesCollapser();
-    this.suspended = false;
     this.pendingFrame = null;
     this.metrics = metricsFrom(settings);
     this.publishGeometry();
@@ -287,38 +286,12 @@ var PaginationController = class {
   }
   /** Schedules a debounced re-layout of all active panes; safe from any render or resize event. */
   requestLayout() {
-    if (this.suspended) return;
     if (this.active.size > 0) this.relayout();
-  }
-  /**
-   * Halts every source of DOM work for the duration of a print or PDF export:
-   * cancels the debounced pass and any pending animation frame, disconnects the
-   * resize observers, and strips the page spacers so the exporter sees the note
-   * in its natural flow. Pane activation state is kept for resume(). Idempotent.
-   */
-  suspend() {
-    if (this.suspended) return;
-    this.suspended = true;
-    this.relayout.cancel();
-    this.cancelPendingFrame();
-    this.observers.forEach((observer) => observer.disconnect());
-    this.observers.clear();
-    this.active.forEach((view) => {
-      const sizer = this.sizerOf(view);
-      if (sizer) this.paginators.get(sizer)?.clear();
-    });
-  }
-  /** Rebuilds every paginated pane after a print or PDF export ends. Idempotent. */
-  resume() {
-    if (!this.suspended) return;
-    this.suspended = false;
-    this.requestLayout();
   }
   /** Returns every pane to Obsidian's own view and removes all Pagewise state from the DOM. */
   dispose() {
     this.relayout.cancel();
     this.cancelPendingFrame();
-    this.suspended = false;
     [...this.active].forEach((view) => this.deactivate(view));
     GEOMETRY_VARS.forEach((name) => document.body.style.removeProperty(name));
   }
@@ -344,9 +317,8 @@ var PaginationController = class {
     this.observers.delete(sizer);
   }
   layoutActiveViews() {
-    if (this.suspended) return;
     this.pruneClosedViews();
-    const views = [...this.active].filter((view) => !view.containerEl.closest(".print"));
+    const views = [...this.active];
     if (this.settings.propertiesMode === "collapse" && this.properties.collapse(views)) {
       this.pendingFrame = requestAnimationFrame(() => {
         this.pendingFrame = null;
@@ -415,77 +387,6 @@ function metricsFrom(settings) {
   return resolveMetrics(pageSizeById(settings.pageSize), settings.marginMm, settings.gapPx);
 }
 
-// src/printGuard.ts
-var PrintGuard = class {
-  constructor(hooks) {
-    this.hooks = hooks;
-    this.engaged = false;
-    this.media = window.matchMedia("print");
-  }
-  /** True while any live print signal is present, whether or not events fired. */
-  isPrinting() {
-    return this.engaged || this.media.matches || hasPrintContainer();
-  }
-  /**
-   * Wires up the three signals. Each teardown is handed to `register`, so the
-   * caller (the plugin) can bind their lifetime to its own unload.
-   */
-  install(register) {
-    const engage = () => this.engage();
-    const release = () => this.release();
-    window.addEventListener("beforeprint", engage);
-    window.addEventListener("afterprint", release);
-    register(() => window.removeEventListener("beforeprint", engage));
-    register(() => window.removeEventListener("afterprint", release));
-    const onMediaChange = (event) => event.matches ? engage() : release();
-    this.media.addEventListener("change", onMediaChange);
-    register(() => this.media.removeEventListener("change", onMediaChange));
-    const observer = new MutationObserver(() => hasPrintContainer() ? engage() : release());
-    observer.observe(document.body, { childList: true });
-    register(() => observer.disconnect());
-  }
-  engage() {
-    if (this.engaged) return;
-    this.engaged = true;
-    this.hooks.suspend();
-  }
-  /** Resumes only once every live signal has cleared; later signals retry it. */
-  release() {
-    if (!this.engaged) return;
-    if (this.media.matches || hasPrintContainer()) return;
-    this.engaged = false;
-    this.hooks.resume();
-  }
-};
-function hasPrintContainer() {
-  return document.body.querySelector(":scope > .print") !== null;
-}
-
-// src/printMargins.ts
-var STYLE_ID = "pagewise-print-margins";
-var PrintMargins = class {
-  /** Applies the given margin in millimetres to every side, or removes the rule when null. */
-  apply(marginMm) {
-    if (marginMm === null) {
-      this.dispose();
-      return;
-    }
-    let style = document.getElementById(STYLE_ID);
-    if (!style) {
-      style = document.createElement("style");
-      style.id = STYLE_ID;
-      document.head.append(style);
-    }
-    style.textContent = pageRule(marginMm);
-  }
-  dispose() {
-    document.getElementById(STYLE_ID)?.remove();
-  }
-};
-function pageRule(marginMm) {
-  return `@page { margin: ${marginMm}mm; }`;
-}
-
 // src/properties/propertiesSidebar.ts
 var PROPERTIES_VIEW_TYPE = "file-properties";
 var PropertiesSidebar = class {
@@ -521,9 +422,7 @@ var DEFAULT_SETTINGS = {
   marginMm: WORD_MARGIN_MM,
   gapPx: 24,
   propertiesMode: "sidebar",
-  toolbarDirection: "horizontal",
-  pdfMargins: "custom",
-  pdfMarginMm: WORD_MARGIN_MM
+  toolbarDirection: "horizontal"
 };
 function normalizeSettings(raw) {
   const data = typeof raw === "object" && raw !== null ? raw : {};
@@ -537,10 +436,7 @@ function normalizeSettings(raw) {
     marginMm: number(data.marginMm, 0, 100, d.marginMm),
     gapPx: number(data.gapPx, 0, 200, d.gapPx),
     propertiesMode: oneOf(data.propertiesMode, ["sidebar", "collapse", "none"], d.propertiesMode),
-    toolbarDirection: oneOf(data.toolbarDirection, ["horizontal", "vertical"], d.toolbarDirection),
-    // "word" was 0.22.0's name for a fixed one-inch margin; it maps to custom.
-    pdfMargins: data.pdfMargins === "word" ? "custom" : oneOf(data.pdfMargins, ["custom", "page", "obsidian"], d.pdfMargins),
-    pdfMarginMm: number(data.pdfMarginMm, 0, 100, d.pdfMarginMm)
+    toolbarDirection: oneOf(data.toolbarDirection, ["horizontal", "vertical"], d.toolbarDirection)
   };
 }
 
@@ -584,21 +480,6 @@ var PagewiseSettingTab = class extends import_obsidian3.PluginSettingTab {
         await this.plugin.updateSettings({ gapPx: value });
       })
     );
-    new import_obsidian3.Setting(containerEl).setName("PDF export margins").setDesc(
-      "Margins on every side of exported and printed PDFs. Pagewise's margins take effect when the export dialog's Margin option is Default."
-    ).addDropdown(
-      (dropdown) => dropdown.addOption("custom", "Set below").addOption("page", "Same as page margins").addOption("obsidian", "Obsidian default").setValue(this.plugin.settings.pdfMargins).onChange(async (value) => {
-        await this.plugin.updateSettings({ pdfMargins: value });
-        this.display();
-      })
-    );
-    if (this.plugin.settings.pdfMargins === "custom") {
-      new import_obsidian3.Setting(containerEl).setName("PDF margin (mm)").setDesc("25.4 mm matches the Word default of one inch.").addSlider(
-        (slider) => slider.setLimits(5, 40, 1).setDynamicTooltip().setValue(this.plugin.settings.pdfMarginMm).onChange(async (value) => {
-          await this.plugin.updateSettings({ pdfMarginMm: value });
-        })
-      );
-    }
     new import_obsidian3.Setting(containerEl).setName("Toolbar expansion").setDesc("Which way the collapsed toolbar opens its tray of controls.").addDropdown(
       (dropdown) => dropdown.addOption("horizontal", "Horizontal (to the right)").addOption("vertical", "Vertical (downwards)").setValue(this.plugin.settings.toolbarDirection).onChange(async (value) => {
         await this.plugin.updateSettings({ toolbarDirection: value });
@@ -1253,13 +1134,9 @@ var NoteToolbar = class {
       this.watch(host);
     });
   }
-  /** Stops all observation during a print or PDF export; the next sync() resumes it. */
-  suspend() {
+  dispose() {
     this.watches.forEach((watch) => watch.disconnect());
     this.watches.clear();
-  }
-  dispose() {
-    this.suspend();
     document.querySelectorAll(`.${TOOLBAR_CLASS}`).forEach((el) => el.remove());
     document.querySelectorAll(`.${HOST_CLASS}`).forEach((el) => el.classList.remove(HOST_CLASS));
   }
@@ -1386,27 +1263,11 @@ function iconSpan(className, icon) {
 
 // src/main.ts
 var PagewisePlugin = class extends import_obsidian7.Plugin {
-  constructor() {
-    super(...arguments);
-    this.printMargins = new PrintMargins();
-  }
   async onload() {
     this.settings = normalizeSettings(await this.loadData());
     this.controller = new PaginationController(this.app, this.settings);
     const propertiesSidebar = new PropertiesSidebar(this.app);
     this.toolbar = new NoteToolbar(this.app, { toggleProperties: () => propertiesSidebar.toggle() });
-    this.printGuard = new PrintGuard({
-      suspend: () => {
-        this.controller.suspend();
-        this.toolbar.suspend();
-      },
-      resume: () => {
-        this.controller.resume();
-        this.syncToolbar();
-      }
-    });
-    this.printGuard.install((teardown) => this.register(teardown));
-    this.applyPrintMargins();
     this.addCommand({
       id: "toggle-paginated-view",
       name: "Toggle paginated view for this note",
@@ -1423,7 +1284,6 @@ var PagewisePlugin = class extends import_obsidian7.Plugin {
   onunload() {
     this.controller.dispose();
     this.toolbar.dispose();
-    this.printMargins.dispose();
   }
   /** Routes the toggle by scope: one ephemeral pane, or the persisted every-note state. */
   async toggle() {
@@ -1439,18 +1299,13 @@ var PagewisePlugin = class extends import_obsidian7.Plugin {
     this.settings = normalizeSettings({ ...this.settings, ...patch });
     await this.saveData(this.settings);
     this.controller.applySettings(this.settings);
-    this.applyPrintMargins();
     this.syncToolbar();
-  }
-  applyPrintMargins() {
-    const { pdfMargins, pdfMarginMm, marginMm } = this.settings;
-    this.printMargins.apply(pdfMargins === "custom" ? pdfMarginMm : pdfMargins === "page" ? marginMm : null);
   }
   /** Every event that can change a paginated note's layout or the set of panes. */
   registerLayoutTriggers() {
     const { workspace } = this.app;
     this.registerMarkdownPostProcessor((el) => {
-      if (this.printGuard.isPrinting() || el.closest(".print")) return;
+      if (el.closest(".print")) return;
       this.controller.requestLayout();
     });
     this.registerEvent(

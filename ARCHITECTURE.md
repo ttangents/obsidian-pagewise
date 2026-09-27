@@ -9,13 +9,11 @@
 | `settingsTab.ts` | The settings UI. Depends on the `SettingsHost` interface, not on the plugin class. |
 | `obsidianInternals.ts` | Every undocumented Obsidian API Pagewise uses, each behind a guarded accessor. |
 | `workspace.ts` | Shared workspace queries. |
-| `printGuard.ts` | Detects print and PDF export; brackets it with suspend and resume. |
-| `printMargins.ts` | The `@page` margin rule for exported and printed PDFs (a custom margin, the page margins, or Obsidian's own). |
-| `pagination/` | `layoutEngine` (pure page-break math), `pageSizes` (pure geometry), `paginator` (writes spacers into one preview), `controller` (which panes are paginated, debounced layout, suspend and resume). |
+| `pagination/` | `layoutEngine` (pure page-break math), `pageSizes` (pure geometry), `paginator` (writes spacers into one preview), `controller` (which panes are paginated, debounced layout). |
 | `properties/` | In-note Properties collapse, and the on-demand Properties sidebar toggle. |
 | `tables/` | `tableModel` (pure Markdown table parse, transform, serialize) and `tableEditor` (finds the table under the cursor and writes edits back). |
 | `toolbar/` | `noteToolbar` (lifecycle and DOM), `anchor` (placement and what triggers it), `menus` (menu plumbing), `formatMenus` and `tableMenu` (menu contents), `markdownActions` (editor edits), `icons` (icon registration and Lucide fallbacks). |
-| `styles.css` | Sections in order: sheets (reading view, Live Preview), print, toolbar, Properties sidebar, linked-mention cards. |
+| `styles.css` | Sections in order: sheets (reading view, Live Preview), toolbar, Properties sidebar, linked-mention cards. |
 
 ## Rules
 
@@ -24,8 +22,7 @@
 3. Components do not import each other. `main.ts` connects them.
 4. Every DOM change Pagewise makes is removed on unload: classes, spacers, toolbars, observers, and the geometry variables on `<body>`.
 5. Formatting writes plain Markdown only. No HTML or CSS goes into notes.
-6. During print and PDF export, Pagewise does no DOM work.
-7. `styles.css` never styles Obsidian's print container. PDF margins come only from the `@page` rule in `printMargins.ts`.
+6. PDF export and printing belong to Obsidian. Obsidian renders the export in a separate hidden window where Pagewise's styles never match, and `styles.css` never targets the export's `.print` container (a test enforces this).
 
 ## Build and test
 

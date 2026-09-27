@@ -1,6 +1,6 @@
 import { App, Plugin, PluginSettingTab, Setting } from "obsidian";
 import { PAGE_SIZES, type PageSizeId } from "./pagination/pageSizes";
-import type { PagewiseSettings, PdfMargins, PropertiesMode, ToggleScope, ToolbarDirection } from "./settings";
+import type { PagewiseSettings, PropertiesMode, ToggleScope, ToolbarDirection } from "./settings";
 
 /** What the settings tab needs from its owner: current values and a way to change them. */
 export interface SettingsHost extends Plugin {
@@ -83,38 +83,6 @@ export class PagewiseSettingTab extends PluginSettingTab {
           await this.plugin.updateSettings({ gapPx: value });
         })
     );
-
-    new Setting(containerEl)
-      .setName("PDF export margins")
-      .setDesc(
-        "Margins on every side of exported and printed PDFs. Pagewise's margins take effect when the export dialog's Margin option is Default."
-      )
-      .addDropdown((dropdown) =>
-        dropdown
-          .addOption("custom", "Set below")
-          .addOption("page", "Same as page margins")
-          .addOption("obsidian", "Obsidian default")
-          .setValue(this.plugin.settings.pdfMargins)
-          .onChange(async (value) => {
-            await this.plugin.updateSettings({ pdfMargins: value as PdfMargins });
-            this.display();
-          })
-      );
-
-    if (this.plugin.settings.pdfMargins === "custom") {
-      new Setting(containerEl)
-        .setName("PDF margin (mm)")
-        .setDesc("25.4 mm matches the Word default of one inch.")
-        .addSlider((slider) =>
-          slider
-            .setLimits(5, 40, 1)
-            .setDynamicTooltip()
-            .setValue(this.plugin.settings.pdfMarginMm)
-            .onChange(async (value) => {
-              await this.plugin.updateSettings({ pdfMarginMm: value });
-            })
-        );
-    }
 
     new Setting(containerEl)
       .setName("Toolbar expansion")

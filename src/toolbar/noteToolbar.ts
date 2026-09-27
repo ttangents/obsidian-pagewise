@@ -62,14 +62,9 @@ export class NoteToolbar {
     });
   }
 
-  /** Stops all observation during a print or PDF export; the next sync() resumes it. */
-  suspend(): void {
+  dispose(): void {
     this.watches.forEach((watch) => watch.disconnect());
     this.watches.clear();
-  }
-
-  dispose(): void {
-    this.suspend();
     document.querySelectorAll(`.${TOOLBAR_CLASS}`).forEach((el) => el.remove());
     document.querySelectorAll(`.${HOST_CLASS}`).forEach((el) => el.classList.remove(HOST_CLASS));
   }

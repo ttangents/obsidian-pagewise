@@ -1,7 +1,5 @@
 import { Plugin } from "obsidian";
 import { PaginationController } from "./pagination/controller";
-import { PrintGuard } from "./printGuard";
-import { PrintMargins } from "./printMargins";
 import { PropertiesSidebar } from "./properties/propertiesSidebar";
 import { normalizeSettings, type PagewiseSettings } from "./settings";
 import { PagewiseSettingTab, type SettingsHost } from "./settingsTab";
@@ -16,26 +14,12 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
   settings!: PagewiseSettings;
   private controller!: PaginationController;
   private toolbar!: NoteToolbar;
-  private printGuard!: PrintGuard;
-  private readonly printMargins = new PrintMargins();
 
   async onload(): Promise<void> {
     this.settings = normalizeSettings(await this.loadData());
     this.controller = new PaginationController(this.app, this.settings);
     const propertiesSidebar = new PropertiesSidebar(this.app);
     this.toolbar = new NoteToolbar(this.app, { toggleProperties: () => propertiesSidebar.toggle() });
-    this.printGuard = new PrintGuard({
-      suspend: () => {
-        this.controller.suspend();
-        this.toolbar.suspend();
-      },
-      resume: () => {
-        this.controller.resume();
-        this.syncToolbar();
-      },
-    });
-    this.printGuard.install((teardown) => this.register(teardown));
-    this.applyPrintMargins();
 
     this.addCommand({
       id: "toggle-paginated-view",
@@ -54,7 +38,6 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
   onunload(): void {
     this.controller.dispose();
     this.toolbar.dispose();
-    this.printMargins.dispose();
   }
 
   /** Routes the toggle by scope: one ephemeral pane, or the persisted every-note state. */
@@ -72,22 +55,16 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
     this.settings = normalizeSettings({ ...this.settings, ...patch });
     await this.saveData(this.settings);
     this.controller.applySettings(this.settings);
-    this.applyPrintMargins();
     this.syncToolbar();
-  }
-
-  private applyPrintMargins(): void {
-    const { pdfMargins, pdfMarginMm, marginMm } = this.settings;
-    this.printMargins.apply(pdfMargins === "custom" ? pdfMarginMm : pdfMargins === "page" ? marginMm : null);
   }
 
   /** Every event that can change a paginated note's layout or the set of panes. */
   private registerLayoutTriggers(): void {
     const { workspace } = this.app;
     this.registerMarkdownPostProcessor((el) => {
-      // The PDF exporter renders into a .print tree; its renders must never
-      // schedule a layout pass (see PrintGuard).
-      if (this.printGuard.isPrinting() || el.closest(".print")) return;
+      // PDF export renders the note into a .print container in a hidden window;
+      // those renders have nothing for Pagewise to lay out.
+      if (el.closest(".print")) return;
       this.controller.requestLayout();
     });
     this.registerEvent(
