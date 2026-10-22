@@ -575,6 +575,136 @@ var PagewiseSettingTab = class extends import_obsidian4.PluginSettingTab {
   }
 };
 
+// src/backlinks/wikilinkSyntax.ts
+var CharKind = {
+  Text: 0,
+  /** Link syntax, hidden on the cards. */
+  Syntax: 1,
+  /** The words a link shows: its alias, or else its note name. */
+  Link: 2
+};
+var WIKILINK = /(!?\[\[)([^[\]|#^\n]*)([#^][^[\]|\n]*)?(?:(\|)([^[\]\n]*))?(\]\])/g;
+function wikilinkKinds(text) {
+  const kinds = new Uint8Array(text.length);
+  for (const match of text.matchAll(WIKILINK)) {
+    const [whole, open, target, subpath = "", pipe, alias] = match;
+    const start = match.index ?? 0;
+    const shown = pipe && alias.trim() ? "alias" : target.trim() ? "target" : null;
+    if (!shown) continue;
+    kinds.fill(CharKind.Syntax, start, start + whole.length);
+    const targetStart = start + open.length;
+    if (shown === "target") {
+      kinds.fill(CharKind.Link, targetStart, targetStart + target.length);
+    } else {
+      const aliasStart = targetStart + target.length + subpath.length + 1;
+      kinds.fill(CharKind.Link, aliasStart, aliasStart + alias.length);
+    }
+  }
+  return kinds;
+}
+
+// src/backlinks/mentionLinks.ts
+var MATCH_SELECTOR = ".search-result-file-match";
+var SYNTAX_CLASS = "pagewise-link-syntax";
+var LINK_CLASS = "pagewise-link-text";
+var SKIP_SELECTOR = ".search-result-hover-button";
+var MentionLinks = class {
+  constructor() {
+    this.watched = /* @__PURE__ */ new Map();
+  }
+  /** Watches the mentions panels of these panes and releases every other one. */
+  sync(paneRoots) {
+    const current = /* @__PURE__ */ new Set();
+    paneRoots.forEach(
+      (root) => root.querySelectorAll(".embedded-backlinks").forEach((panel) => current.add(panel))
+    );
+    this.watched.forEach((observer, panel) => {
+      if (current.has(panel) && panel.isConnected) return;
+      observer.disconnect();
+      this.watched.delete(panel);
+      restore(panel);
+    });
+    current.forEach((panel) => {
+      if (this.watched.has(panel)) return;
+      const Observer = panel.ownerDocument.defaultView?.MutationObserver ?? MutationObserver;
+      const observer = new Observer((records) => records.forEach((record) => this.onMutation(record)));
+      observer.observe(panel, { childList: true, subtree: true });
+      this.watched.set(panel, observer);
+      panel.querySelectorAll(MATCH_SELECTOR).forEach(styleExcerpt);
+    });
+  }
+  dispose() {
+    this.watched.forEach((observer, panel) => {
+      observer.disconnect();
+      restore(panel);
+    });
+    this.watched.clear();
+  }
+  onMutation(record) {
+    const target = record.target instanceof Element ? record.target : record.target.parentElement;
+    const enclosing = target?.closest(MATCH_SELECTOR);
+    if (enclosing) {
+      styleExcerpt(enclosing);
+      return;
+    }
+    record.addedNodes.forEach((node) => {
+      if (!(node instanceof Element)) return;
+      if (node.matches(MATCH_SELECTOR)) styleExcerpt(node);
+      node.querySelectorAll(MATCH_SELECTOR).forEach(styleExcerpt);
+    });
+  }
+};
+function styleExcerpt(excerpt) {
+  const nodes = textNodes(excerpt);
+  const text = nodes.map((node) => node.data).join("");
+  if (!text.includes("]]")) return;
+  const kinds = wikilinkKinds(text);
+  if (!kinds.some((kind) => kind !== CharKind.Text)) return;
+  let offset = 0;
+  nodes.forEach((node) => {
+    const length = node.data.length;
+    const slice = kinds.subarray(offset, offset + length);
+    offset += length;
+    if (slice.every((kind) => kind === CharKind.Text)) return;
+    const doc = node.ownerDocument;
+    const fragment = doc.createDocumentFragment();
+    let runStart = 0;
+    for (let i = 1; i <= length; i++) {
+      if (i < length && slice[i] === slice[runStart]) continue;
+      const piece = node.data.slice(runStart, i);
+      const kind = slice[runStart];
+      if (kind === CharKind.Text) {
+        fragment.append(doc.createTextNode(piece));
+      } else {
+        const span = doc.createElement("span");
+        span.className = kind === CharKind.Syntax ? SYNTAX_CLASS : LINK_CLASS;
+        span.textContent = piece;
+        fragment.append(span);
+      }
+      runStart = i;
+    }
+    node.replaceWith(fragment);
+  });
+}
+function textNodes(excerpt) {
+  const doc = excerpt.ownerDocument;
+  const walker = doc.createTreeWalker(excerpt, NodeFilter.SHOW_TEXT);
+  const nodes = [];
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const parent = node.parentElement;
+    if (!parent || parent.closest(`${SKIP_SELECTOR}, .${SYNTAX_CLASS}, .${LINK_CLASS}`)) continue;
+    nodes.push(node);
+  }
+  return nodes;
+}
+function restore(panel) {
+  panel.querySelectorAll(`.${SYNTAX_CLASS}, .${LINK_CLASS}`).forEach((span) => {
+    const parent = span.parentElement;
+    span.replaceWith(span.ownerDocument.createTextNode(span.textContent ?? ""));
+    parent?.normalize();
+  });
+}
+
 // src/toolbar/noteToolbar.ts
 var import_obsidian7 = require("obsidian");
 
@@ -1546,11 +1676,13 @@ function iconSpan(owner, className, icon) {
 var PagewisePlugin = class extends import_obsidian8.Plugin {
   constructor() {
     super(...arguments);
+    this.mentionLinks = new MentionLinks();
     /**
-     * The Properties view updates a moment after the active note changes, so its
-     * inspector mark and the toolbar's pressed state are read after it settles.
+     * The Properties view and the linked-mentions panel update a moment after the
+     * active note changes, so the inspector mark, the toolbar's pressed state and the
+     * mention restyling are applied after they settle.
      */
-    this.syncInspector = (0, import_obsidian8.debounce)(() => this.syncInspectorNow(), 50, true);
+    this.syncSettled = (0, import_obsidian8.debounce)(() => this.syncSettledNow(), 50, true);
   }
   async onload() {
     this.settings = normalizeSettings(await this.loadData());
@@ -1576,10 +1708,11 @@ var PagewisePlugin = class extends import_obsidian8.Plugin {
     });
   }
   onunload() {
-    this.syncInspector.cancel();
+    this.syncSettled.cancel();
     this.controller.dispose();
     this.toolbar.dispose();
     this.propertiesSidebar.dispose();
+    this.mentionLinks.dispose();
     markdownViews(this.app).forEach((view) => view.containerEl.removeAttribute(PATTERN_ATTRIBUTE));
   }
   /** Routes the toggle by scope: one ephemeral pane, or the persisted every-note state. */
@@ -1620,19 +1753,19 @@ var PagewisePlugin = class extends import_obsidian8.Plugin {
     this.registerEvent(
       workspace.on("active-leaf-change", () => {
         this.controller.requestLayout();
-        this.syncInspector();
+        this.syncSettled();
       })
     );
     this.registerEvent(workspace.on("css-change", () => this.controller.requestLayout()));
-    this.registerEvent(workspace.on("resize", () => this.syncInspector()));
-    this.registerEvent(this.app.vault.on("rename", () => this.syncInspector()));
+    this.registerEvent(workspace.on("resize", () => this.syncSettled()));
+    this.registerEvent(this.app.vault.on("rename", () => this.syncSettled()));
     this.registerDomEvent(window, "resize", () => this.controller.requestLayout());
   }
   /** Every paginated pane carries the document toolbar; unpaginated panes carry none. */
   syncToolbar() {
     this.syncBackground();
     this.toolbar.sync((view) => this.controller.isPaginated(view));
-    this.syncInspector();
+    this.syncSettled();
   }
   /** Marks each paginated pane with the chosen pattern; plain and unpaginated panes carry none. */
   syncBackground() {
@@ -1642,13 +1775,15 @@ var PagewisePlugin = class extends import_obsidian8.Plugin {
       else view.containerEl.removeAttribute(PATTERN_ATTRIBUTE);
     });
   }
-  /** Marks the Properties views showing paginated notes, and updates the toolbars' Properties state. */
-  syncInspectorNow() {
+  /** Marks the Properties views showing paginated notes, updates the toolbars' Properties state, and restyles the mention cards. */
+  syncSettledNow() {
+    const paginatedViews = markdownViews(this.app).filter((view) => this.controller.isPaginated(view));
     const paginated = /* @__PURE__ */ new Set();
-    markdownViews(this.app).forEach((view) => {
-      if (view.file && this.controller.isPaginated(view)) paginated.add(view.file.path);
+    paginatedViews.forEach((view) => {
+      if (view.file) paginated.add(view.file.path);
     });
     this.propertiesSidebar.syncInspectors(paginated);
     this.toolbar.refreshState();
+    this.mentionLinks.sync(paginatedViews.map((view) => view.containerEl));
   }
 };

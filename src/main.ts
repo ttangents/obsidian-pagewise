@@ -3,6 +3,7 @@ import { PaginationController } from "./pagination/controller";
 import { PropertiesSidebar } from "./properties/propertiesSidebar";
 import { normalizeSettings, type PagewiseSettings } from "./settings";
 import { PagewiseSettingTab, type SettingsHost } from "./settingsTab";
+import { MentionLinks } from "./backlinks/mentionLinks";
 import { NoteToolbar } from "./toolbar/noteToolbar";
 import { PATTERN_ATTRIBUTE } from "./appearance/backgrounds";
 import { markdownViews } from "./workspace";
@@ -17,11 +18,13 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
   private controller!: PaginationController;
   private toolbar!: NoteToolbar;
   private propertiesSidebar!: PropertiesSidebar;
+  private readonly mentionLinks = new MentionLinks();
   /**
-   * The Properties view updates a moment after the active note changes, so its
-   * inspector mark and the toolbar's pressed state are read after it settles.
+   * The Properties view and the linked-mentions panel update a moment after the
+   * active note changes, so the inspector mark, the toolbar's pressed state and the
+   * mention restyling are applied after they settle.
    */
-  private readonly syncInspector = debounce(() => this.syncInspectorNow(), 50, true);
+  private readonly syncSettled = debounce(() => this.syncSettledNow(), 50, true);
 
   async onload(): Promise<void> {
     this.settings = normalizeSettings(await this.loadData());
@@ -49,10 +52,11 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
   }
 
   onunload(): void {
-    this.syncInspector.cancel();
+    this.syncSettled.cancel();
     this.controller.dispose();
     this.toolbar.dispose();
     this.propertiesSidebar.dispose();
+    this.mentionLinks.dispose();
     markdownViews(this.app).forEach((view) => view.containerEl.removeAttribute(PATTERN_ATTRIBUTE));
   }
 
@@ -98,13 +102,13 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
     this.registerEvent(
       workspace.on("active-leaf-change", () => {
         this.controller.requestLayout();
-        this.syncInspector();
+        this.syncSettled();
       })
     );
     this.registerEvent(workspace.on("css-change", () => this.controller.requestLayout()));
     // Fires when a sidebar opens or closes, which changes what Properties shows.
-    this.registerEvent(workspace.on("resize", () => this.syncInspector()));
-    this.registerEvent(this.app.vault.on("rename", () => this.syncInspector()));
+    this.registerEvent(workspace.on("resize", () => this.syncSettled()));
+    this.registerEvent(this.app.vault.on("rename", () => this.syncSettled()));
     this.registerDomEvent(window, "resize", () => this.controller.requestLayout());
   }
 
@@ -112,7 +116,7 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
   private syncToolbar(): void {
     this.syncBackground();
     this.toolbar.sync((view) => this.controller.isPaginated(view));
-    this.syncInspector();
+    this.syncSettled();
   }
 
   /** Marks each paginated pane with the chosen pattern; plain and unpaginated panes carry none. */
@@ -124,13 +128,16 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
     });
   }
 
-  /** Marks the Properties views showing paginated notes, and updates the toolbars' Properties state. */
-  private syncInspectorNow(): void {
+  /** Marks the Properties views showing paginated notes, updates the toolbars' Properties state, and restyles the mention cards. */
+  private syncSettledNow(): void {
+    const paginatedViews = markdownViews(this.app).filter((view) => this.controller.isPaginated(view));
     const paginated = new Set<string>();
-    markdownViews(this.app).forEach((view) => {
-      if (view.file && this.controller.isPaginated(view)) paginated.add(view.file.path);
+    paginatedViews.forEach((view) => {
+      if (view.file) paginated.add(view.file.path);
     });
     this.propertiesSidebar.syncInspectors(paginated);
     this.toolbar.refreshState();
+    this.mentionLinks.sync(paginatedViews.map((view) => view.containerEl));
   }
+
 }

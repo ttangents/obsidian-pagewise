@@ -568,13 +568,23 @@
   margin-bottom: 0;
 }
 
-/* The mention of this note: full-strength text on a soft neutral tint, so the match
- * stays identifiable inside the muted excerpt. */
+/* Links in an excerpt read as their names: MentionLinks wraps the brackets, embed
+ * marks, aliased targets and heading references in a hidden span, and the shown words
+ * in a link-coloured one. The excerpt text itself is unchanged. */
+.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .pagewise-link-syntax {
+  display: none;
+}
+
+.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .pagewise-link-text {
+  color: var(--link-color, var(--text-accent));
+}
+
+/* The mention of this note: semibold, so it stands out within the muted excerpt.
+ * A linked mention also takes the link colour; an unlinked one stays text colour,
+ * since it is not a link. */
 .workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .search-result-file-matched-text {
-  background: color-mix(in srgb, var(--text-normal) 8%, transparent);
+  background: none;
   color: var(--text-normal);
-  border-radius: var(--pagewise-radius-mark);
-  padding: 1px 4px;
-  box-decoration-break: clone;
-  -webkit-box-decoration-break: clone;
+  font-weight: var(--font-semibold, 600);
+  padding: 0;
 }
