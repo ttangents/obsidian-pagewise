@@ -575,38 +575,104 @@ var PagewiseSettingTab = class extends import_obsidian4.PluginSettingTab {
   }
 };
 
-// src/backlinks/wikilinkSyntax.ts
-var CharKind = {
-  Text: 0,
-  /** Link syntax, hidden on the cards. */
-  Syntax: 1,
-  /** The words a link shows: its alias, or else its note name. */
-  Link: 2
+// src/backlinks/inlineMarkdown.ts
+var Style = {
+  SYNTAX: 1,
+  LINK: 2,
+  BOLD: 4,
+  ITALIC: 8,
+  HIGHLIGHT: 16,
+  STRIKE: 32,
+  CODE: 64
 };
 var WIKILINK = /(!?\[\[)([^[\]|#^\n]*)([#^][^[\]|\n]*)?(?:(\|)([^[\]\n]*))?(\]\])/g;
-function wikilinkKinds(text) {
-  const kinds = new Uint8Array(text.length);
+var MARKDOWN_LINK = /(!?\[)([^[\]\n]+)(\]\([^()\s]+(?:\s+"[^"\n]*")?\))/g;
+var CODE = /(`+)([^`\n]+?)\1/g;
+var ESCAPE = /\\([\\`*_=~[\]#|!])/g;
+var EMPHASIS = [
+  { pattern: /==(?=\S)([^\n]*?\S)==/g, style: Style.HIGHLIGHT },
+  { pattern: /~~(?=\S)([^\n]*?\S)~~/g, style: Style.STRIKE },
+  { pattern: /\*\*(?=[^\s*])([^\n]*?[^\s*])\*\*/g, style: Style.BOLD },
+  { pattern: /(?<![\p{L}\p{N}_])__(?=[^\s_])([^\n]*?[^\s_])__(?![\p{L}\p{N}_])/gu, style: Style.BOLD },
+  { pattern: /(?<![*\\])\*(?=[^\s*])([^\n*]*?[^\s*\\])\*(?!\*)/g, style: Style.ITALIC },
+  { pattern: /(?<![\p{L}\p{N}_\\])_(?=[^\s_])([^\n_]*?[^\s_\\])_(?![\p{L}\p{N}_])/gu, style: Style.ITALIC }
+];
+function inlineStyles(text) {
+  const styles = new Uint8Array(text.length);
+  const locked = new Uint8Array(text.length);
+  const free = (start, end) => !locked.subarray(start, end).some(Boolean);
+  const hide = (start, end) => {
+    styles.fill(Style.SYNTAX, start, end);
+    locked.fill(1, start, end);
+  };
+  for (const match of text.matchAll(ESCAPE)) {
+    const start = match.index ?? 0;
+    if (!free(start, start + 2)) continue;
+    hide(start, start + 1);
+    locked[start + 1] = 1;
+  }
+  for (const match of text.matchAll(CODE)) {
+    const start = match.index ?? 0;
+    const [whole, ticks] = match;
+    if (!free(start, start + whole.length)) continue;
+    hide(start, start + ticks.length);
+    hide(start + whole.length - ticks.length, start + whole.length);
+    styles.fill(Style.CODE, start + ticks.length, start + whole.length - ticks.length);
+    locked.fill(1, start, start + whole.length);
+  }
   for (const match of text.matchAll(WIKILINK)) {
     const [whole, open, target, subpath = "", pipe, alias] = match;
     const start = match.index ?? 0;
-    const shown = pipe && alias.trim() ? "alias" : target.trim() ? "target" : null;
-    if (!shown) continue;
-    kinds.fill(CharKind.Syntax, start, start + whole.length);
+    if (!free(start, start + whole.length)) continue;
+    const showAlias = !!pipe && alias.trim() !== "";
+    if (!showAlias && target.trim() === "") continue;
     const targetStart = start + open.length;
-    if (shown === "target") {
-      kinds.fill(CharKind.Link, targetStart, targetStart + target.length);
-    } else {
-      const aliasStart = targetStart + target.length + subpath.length + 1;
-      kinds.fill(CharKind.Link, aliasStart, aliasStart + alias.length);
+    const shownStart = showAlias ? targetStart + target.length + subpath.length + 1 : targetStart;
+    const shownEnd = showAlias ? shownStart + alias.length : targetStart + target.length;
+    hide(start, shownStart);
+    hide(shownEnd, start + whole.length);
+    styles.fill(Style.LINK, shownStart, shownEnd);
+    locked.fill(1, shownStart, shownEnd);
+  }
+  for (const match of text.matchAll(MARKDOWN_LINK)) {
+    const [whole, open, label] = match;
+    const start = match.index ?? 0;
+    if (!free(start, start + whole.length)) continue;
+    const labelStart = start + open.length;
+    hide(start, labelStart);
+    hide(labelStart + label.length, start + whole.length);
+    for (let i = labelStart; i < labelStart + label.length; i++) styles[i] |= Style.LINK;
+  }
+  for (const { pattern, style } of EMPHASIS) {
+    for (const match of text.matchAll(pattern)) {
+      const start = match.index ?? 0;
+      const whole = match[0];
+      const inner = match[1];
+      const open = whole.indexOf(inner);
+      const innerStart = start + open;
+      const innerEnd = innerStart + inner.length;
+      const end = start + whole.length;
+      if (!open || !free(start, innerStart) || !free(innerEnd, end)) continue;
+      hide(start, innerStart);
+      hide(innerEnd, end);
+      for (let i = innerStart; i < innerEnd; i++) if (!(styles[i] & Style.SYNTAX)) styles[i] |= style;
     }
   }
-  return kinds;
+  return styles;
 }
 
 // src/backlinks/mentionLinks.ts
 var MATCH_SELECTOR = ".search-result-file-match";
-var SYNTAX_CLASS = "pagewise-link-syntax";
-var LINK_CLASS = "pagewise-link-text";
+var WRAP_CLASS = "pagewise-md";
+var STYLE_CLASSES = [
+  [Style.SYNTAX, "pagewise-md-syntax"],
+  [Style.LINK, "pagewise-md-link"],
+  [Style.BOLD, "pagewise-md-bold"],
+  [Style.ITALIC, "pagewise-md-italic"],
+  [Style.HIGHLIGHT, "pagewise-md-highlight"],
+  [Style.STRIKE, "pagewise-md-strike"],
+  [Style.CODE, "pagewise-md-code"]
+];
 var SKIP_SELECTOR = ".search-result-hover-button";
 var MentionLinks = class {
   constructor() {
@@ -657,15 +723,15 @@ var MentionLinks = class {
 function styleExcerpt(excerpt) {
   const nodes = textNodes(excerpt);
   const text = nodes.map((node) => node.data).join("");
-  if (!text.includes("]]")) return;
-  const kinds = wikilinkKinds(text);
-  if (!kinds.some((kind) => kind !== CharKind.Text)) return;
+  if (!/[[\]=*_~`\\]/.test(text)) return;
+  const kinds = inlineStyles(text);
+  if (!kinds.some(Boolean)) return;
   let offset = 0;
   nodes.forEach((node) => {
     const length = node.data.length;
     const slice = kinds.subarray(offset, offset + length);
     offset += length;
-    if (slice.every((kind) => kind === CharKind.Text)) return;
+    if (!slice.some(Boolean)) return;
     const doc = node.ownerDocument;
     const fragment = doc.createDocumentFragment();
     let runStart = 0;
@@ -673,11 +739,11 @@ function styleExcerpt(excerpt) {
       if (i < length && slice[i] === slice[runStart]) continue;
       const piece = node.data.slice(runStart, i);
       const kind = slice[runStart];
-      if (kind === CharKind.Text) {
+      if (kind === 0) {
         fragment.append(doc.createTextNode(piece));
       } else {
         const span = doc.createElement("span");
-        span.className = kind === CharKind.Syntax ? SYNTAX_CLASS : LINK_CLASS;
+        span.classList.add(WRAP_CLASS, ...STYLE_CLASSES.filter(([bit]) => kind & bit).map(([, name]) => name));
         span.textContent = piece;
         fragment.append(span);
       }
@@ -692,13 +758,13 @@ function textNodes(excerpt) {
   const nodes = [];
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
     const parent = node.parentElement;
-    if (!parent || parent.closest(`${SKIP_SELECTOR}, .${SYNTAX_CLASS}, .${LINK_CLASS}`)) continue;
+    if (!parent || parent.closest(`${SKIP_SELECTOR}, .${WRAP_CLASS}`)) continue;
     nodes.push(node);
   }
   return nodes;
 }
 function restore(panel) {
-  panel.querySelectorAll(`.${SYNTAX_CLASS}, .${LINK_CLASS}`).forEach((span) => {
+  panel.querySelectorAll(`.${WRAP_CLASS}`).forEach((span) => {
     const parent = span.parentElement;
     span.replaceWith(span.ownerDocument.createTextNode(span.textContent ?? ""));
     parent?.normalize();

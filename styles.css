@@ -568,15 +568,46 @@
   margin-bottom: 0;
 }
 
-/* Links in an excerpt read as their names: MentionLinks wraps the brackets, embed
- * marks, aliased targets and heading references in a hidden span, and the shown words
- * in a link-coloured one. The excerpt text itself is unchanged. */
-.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .pagewise-link-syntax {
+/* Excerpts read as the note renders: MentionLinks wraps the Markdown markers (link
+ * brackets, ==, **, backticks and the like) in a hidden span and the styled words in
+ * spans that take the theme's own link, highlight, bold, italic and code styles. The
+ * excerpt text itself is unchanged. */
+.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .pagewise-md-syntax {
   display: none;
 }
 
-.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .pagewise-link-text {
+.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .pagewise-md-bold {
+  font-weight: var(--bold-weight, var(--font-semibold, 600));
+}
+
+.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .pagewise-md-italic {
+  font-style: italic;
+}
+
+.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .pagewise-md-highlight {
+  background-color: var(--text-highlight-bg);
+  color: var(--text-normal);
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+/* After the highlight rule, so a link inside a highlight keeps the link colour. */
+.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .pagewise-md-link {
   color: var(--link-color, var(--text-accent));
+}
+
+.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .pagewise-md-strike {
+  text-decoration: line-through;
+}
+
+.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .pagewise-md-code {
+  font-family: var(--font-monospace);
+  font-size: 0.9em;
+  background-color: var(--code-background, var(--background-primary-alt));
+  border-radius: var(--pagewise-radius-mark);
+  padding: 0.1em 0.25em;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
 }
 
 /* The mention of this note: semibold, so it stands out within the muted excerpt.
