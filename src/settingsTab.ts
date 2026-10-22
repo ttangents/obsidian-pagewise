@@ -1,6 +1,6 @@
 import { App, Plugin, PluginSettingTab, Setting } from "obsidian";
 import { PAGE_SIZES, type PageSizeId } from "./pagination/pageSizes";
-import type { PagewiseSettings, PropertiesMode, ToggleScope, ToolbarDirection } from "./settings";
+import type { PagewiseSettings, PropertiesMode, ToggleScope } from "./settings";
 
 /** What the settings tab needs from its owner: current values and a way to change them. */
 export interface SettingsHost extends Plugin {
@@ -61,7 +61,7 @@ export class PagewiseSettingTab extends PluginSettingTab {
     new Setting(containerEl)
       .setName("Properties in paginated view")
       .setDesc(
-        "Move to sidebar: the panel leaves the page; open it on demand with the toolbar’s info button or Obsidian’s own Properties view. Collapse in place: the panel stays on the page, folded. Leave unchanged: no intervention. The note's frontmatter is never modified."
+        "Move to sidebar: the panel leaves the page; open it on demand with the toolbar’s Properties button or Obsidian’s own Properties view. Collapse in place: the panel stays on the page, folded. Leave unchanged: no intervention. The note's frontmatter is never modified."
       )
       .addDropdown((dropdown) =>
         dropdown
@@ -83,18 +83,5 @@ export class PagewiseSettingTab extends PluginSettingTab {
           await this.plugin.updateSettings({ gapPx: value });
         })
     );
-
-    new Setting(containerEl)
-      .setName("Toolbar expansion")
-      .setDesc("Which way the collapsed toolbar opens its tray of controls.")
-      .addDropdown((dropdown) =>
-        dropdown
-          .addOption("horizontal", "Horizontal (to the right)")
-          .addOption("vertical", "Vertical (downwards)")
-          .setValue(this.plugin.settings.toolbarDirection)
-          .onChange(async (value) => {
-            await this.plugin.updateSettings({ toolbarDirection: value as ToolbarDirection });
-          })
-      );
   }
 }

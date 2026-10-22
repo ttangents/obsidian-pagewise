@@ -176,119 +176,120 @@
   background-color: transparent;
 }
 
-/* ---------- Floating note toolbar ----------
- * Shown on any paginated pane, after Bear's toolbar: Lucide glyphs in a floating
- * pill anchored left of the sheet. NoteToolbar builds it; anchor.ts positions it.
+/* ---------- Document toolbar ----------
+ * A fixed bar between the view header and the canvas, on paginated panes only.
+ * NoteToolbar inserts it; the content view gives up exactly the bar's height, so the
+ * bar never overlaps the sheet or the find bar and never enters pagination.
  */
 
-.pagewise-has-toolbar {
-  position: relative;
+.workspace-leaf-content.pagewise-has-toolbar > .view-content {
+  height: auto;
+  flex: 1 1 0;
+  min-height: 0;
 }
 
 .pagewise-toolbar {
-  position: absolute;
-  top: 10px;
-  /* Horizontal position is set inline by NoteToolbar: the collapsed handle's anchor. */
-  z-index: 10;
   display: flex;
   align-items: center;
-  /* Collapsed: uniform padding around the square handle makes the pill a true circle. */
-  padding: 3px;
-  border-radius: 999px;
-  transition: padding 240ms ease;
+  gap: var(--size-4-2);
+  flex: 0 0 auto;
+  min-width: 0;
+  padding: var(--size-4-1) var(--size-4-3);
   background-color: var(--background-primary);
-  box-shadow: var(--pagewise-toolbar-shadow, 0 0 0 1px var(--background-modifier-border), 0 1px 4px rgba(0, 0, 0, 0.08));
+  border-bottom: 1px solid var(--pagewise-hairline, var(--background-modifier-border));
 }
 
-.pagewise-toolbar-format {
-  position: relative;
+/* Groups are told apart by space alone; controls inside a group sit close. */
+.pagewise-toolbar-groups {
   display: flex;
   align-items: center;
-  gap: 1px;
+  gap: var(--size-4-4);
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
 }
 
-/* A hairline dividing the formatting group from the info button, drawn inside the
- * existing 8px gap so it adds no width or height. Hidden with the group in reading view. */
-.pagewise-toolbar-format::after {
-  content: "";
-  position: absolute;
-  top: 25%;
-  bottom: 25%;
-  right: -4.5px;
-  width: 1px;
-  background-color: var(--pagewise-hairline);
-  pointer-events: none;
+.pagewise-toolbar-group,
+.pagewise-toolbar-trailing {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
 }
 
-/* No editor in reading view: the formatting group hides, the info button stays. */
-.workspace-leaf-content[data-mode="preview"] .pagewise-toolbar-format {
+/* Controls the pane is too narrow for live in the More menu instead. */
+.pagewise-toolbar .pagewise-toolbar-button.is-overflowed,
+.pagewise-toolbar .pagewise-toolbar-group.is-empty {
   display: none;
 }
 
-.pagewise-toolbar-button {
-  display: grid;
-  place-items: center;
-  width: 26px;
-  height: 26px;
+/* Reading view has no editor, so only Properties remains. */
+.workspace-leaf-content[data-mode="preview"] .pagewise-toolbar-groups,
+.workspace-leaf-content[data-mode="preview"] .pagewise-toolbar .pagewise-toolbar-more {
+  display: none;
+}
+
+.pagewise-toolbar .pagewise-toolbar-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  height: 28px;
+  min-width: 28px;
+  margin: 0;
+  padding: 0 6px;
   background: none;
   border: none;
   box-shadow: none;
-  padding: 0;
+  border-radius: var(--radius-s);
   color: var(--text-muted);
-  border-radius: 6px;
-  cursor: pointer;
+  opacity: 1;
+  cursor: var(--cursor);
 }
 
-.pagewise-toolbar-button:hover {
+.pagewise-toolbar .pagewise-toolbar-button:hover {
   color: var(--text-normal);
   background-color: var(--background-modifier-hover);
 }
 
-.pagewise-toolbar-button:active {
+/* An open menu and a showing Properties view both read as "on". */
+.pagewise-toolbar .pagewise-toolbar-button[aria-expanded="true"],
+.pagewise-toolbar .pagewise-toolbar-button[aria-pressed="true"] {
   color: var(--text-normal);
   background-color: var(--background-modifier-active-hover, var(--background-modifier-hover));
 }
 
-/* Obsidian's focus ring sits outside the button, where the tray clips it. Draw the
- * same theme focus colour inside the button instead: no clipping, and distinct from
- * hover, which only tints the background. */
+/* The groups clip their overflow, which would cut an outside ring; draw it inside. */
 .pagewise-toolbar .pagewise-toolbar-button:focus-visible {
   box-shadow: inset 0 0 0 2px var(--background-modifier-border-focus);
 }
 
-.pagewise-toolbar-button svg {
-  width: 15px;
-  height: 15px;
+.pagewise-toolbar .pagewise-toolbar-button svg {
+  width: 16px;
+  height: 16px;
   stroke-width: 1.75px;
 }
 
-/* The 10px dropdown chevrons keep a slightly heavier line so they stay legible. */
-.pagewise-toolbar-button.has-menu > .pagewise-chevron:last-child svg {
+.pagewise-toolbar-icon,
+.pagewise-toolbar-chevron {
+  display: flex;
+}
+
+.pagewise-toolbar .pagewise-toolbar-chevron {
+  color: var(--text-faint);
+}
+
+.pagewise-toolbar .pagewise-toolbar-chevron svg {
+  width: 10px;
+  height: 10px;
   stroke-width: 2px;
 }
 
-/* Menu controls hold an icon plus a chevron, so they size to content. */
-.pagewise-toolbar-button.has-menu {
-  width: auto;
-  grid-auto-flow: column;
-  gap: 1px;
-  padding: 0 4px;
-}
-
-.pagewise-chevron {
-  display: grid;
-  place-items: center;
-}
-
-.pagewise-chevron svg {
-  width: 10px;
-  height: 10px;
-}
-
-/* Menu faces that are icons (the blocks control) render at button icon size. */
-.pagewise-toolbar-button.has-menu > .pagewise-chevron:first-child svg {
-  width: 15px;
-  height: 15px;
+@media (forced-colors: active) {
+  .pagewise-toolbar .pagewise-toolbar-button[aria-pressed="true"],
+  .pagewise-toolbar .pagewise-toolbar-button[aria-expanded="true"] {
+    outline: 1px solid CanvasText;
+  }
 }
 
 /* Themes like Minimal hide every menu icon; restore them in Pagewise's own menus only. */
@@ -325,180 +326,129 @@
   height: 12px;
 }
 
-/* ---------- Collapsed toolbar: a handle at rest, a tray that slides out on hover ---------- */
+/* ---------- Properties inspector ----------
+ * Applies only to a core Properties view showing a paginated note; PropertiesSidebar
+ * sets .pagewise-inspector on it. Every editor stays Obsidian's own: these rules set
+ * Obsidian's metadata variables and spacing, and never hide or reorder a property.
+ */
 
-.pagewise-toolbar.is-expanded {
-  padding: 3px 8px;
+.workspace-leaf-content[data-type="file-properties"].pagewise-inspector .pagewise-inspector-header {
+  padding: var(--size-4-1) var(--size-4-2) var(--size-4-3);
 }
 
-.pagewise-toolbar-handle {
-  position: relative;
+.pagewise-inspector .pagewise-inspector-title {
+  font-size: var(--font-ui-small);
+  font-weight: var(--font-semibold);
+  line-height: var(--line-height-tight);
+  color: var(--text-normal);
 }
 
-.pagewise-handle-icon {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  transition: opacity 180ms ease, transform 180ms ease;
-}
-
-.pagewise-toolbar .pagewise-handle-icon.is-chevron {
-  opacity: 0;
-  transform: rotate(-45deg);
-}
-
-.pagewise-toolbar.is-expanded .pagewise-handle-icon.is-chevron {
-  opacity: 1;
-  transform: rotate(0deg);
-}
-
-.pagewise-toolbar.is-expanded .pagewise-handle-icon.is-plus {
-  opacity: 0;
-  transform: rotate(45deg);
-}
-
-/* The 0fr to 1fr grid track animates the tray's width without any measurement. */
-.pagewise-toolbar-reveal {
-  display: grid;
-  grid-template-columns: 0fr;
-  opacity: 0;
-  transition: grid-template-columns 240ms ease, opacity 180ms ease;
-}
-
-.pagewise-toolbar.is-expanded .pagewise-toolbar-reveal {
-  grid-template-columns: 1fr;
-  opacity: 1;
-  transition: grid-template-columns 240ms ease, opacity 220ms ease 60ms;
-}
-
-.pagewise-toolbar-content {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
+.pagewise-inspector .pagewise-inspector-file {
+  margin-top: 2px;
+  font-size: var(--font-ui-smaller);
+  line-height: var(--line-height-tight);
+  color: var(--text-muted);
   overflow: hidden;
-  padding-left: 0;
-  transition: padding-left 240ms ease;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.pagewise-toolbar.is-expanded .pagewise-toolbar-content {
-  padding-left: 6px;
-}
-
-/* ---------- Vertical expansion ----------
- * The same handle and tray, turned 90 degrees: the tray drops below the handle,
- * animated by the row track instead of the column track. The handle chevron and
- * each menu button's chevron point down and right respectively, matching where
- * the tray and the menus actually open.
- */
-
-.pagewise-toolbar.is-vertical {
-  flex-direction: column;
-  transition: padding 240ms ease, margin-left 240ms ease;
-}
-
-/* Every control centers on one vertical axis: the collapsed handle's center. The
- * wider side padding makes room for the menu chevrons; the matching negative margin
- * keeps that axis from shifting when the tray opens.
- */
-.pagewise-toolbar.is-vertical.is-expanded {
-  padding: 3px 7px 8px;
-  margin-left: -4px;
-}
-
-.pagewise-toolbar.is-vertical .pagewise-handle-icon.is-chevron {
-  transform: rotate(45deg);
-}
-
-.pagewise-toolbar.is-vertical.is-expanded .pagewise-handle-icon.is-chevron {
-  transform: rotate(90deg);
-}
-
-.pagewise-toolbar.is-vertical .pagewise-toolbar-reveal {
-  grid-template-columns: none;
-  grid-template-rows: 0fr;
-  transition: grid-template-rows 240ms ease, opacity 180ms ease;
-}
-
-.pagewise-toolbar.is-vertical.is-expanded .pagewise-toolbar-reveal {
-  grid-template-columns: none;
-  grid-template-rows: 1fr;
-  transition: grid-template-rows 240ms ease, opacity 220ms ease 60ms;
-}
-
-/* The tray only needs clipping along its animated axis. overflow: clip (unlike hidden)
- * lets the other axis stay visible, so the menu chevrons can hang past the buttons.
- */
-.pagewise-toolbar.is-vertical .pagewise-toolbar-content {
-  flex-direction: column;
-  min-width: unset;
-  min-height: 0;
-  overflow-x: visible;
-  overflow-y: clip;
-  padding-left: 0;
-  padding-top: 0;
-  transition: padding-top 240ms ease;
-}
-
-.pagewise-toolbar.is-vertical.is-expanded .pagewise-toolbar-content {
-  padding-left: 0;
-  padding-top: 6px;
-}
-
-.pagewise-toolbar.is-vertical .pagewise-toolbar-format {
-  flex-direction: column;
-}
-
-.pagewise-toolbar.is-vertical .pagewise-toolbar-format::after {
-  top: auto;
-  bottom: -4.5px;
-  left: 25%;
-  right: 25%;
-  width: auto;
-  height: 1px;
-}
-
-/* Menu buttons take the same footprint as plain buttons, so their glyphs sit on the
- * shared axis; the chevron hangs just right of the glyph, outside the flow.
- */
-.pagewise-toolbar.is-vertical .pagewise-toolbar-button.has-menu {
-  position: relative;
-  width: 26px;
-  padding: 0;
-  grid-auto-flow: row;
-}
-
-.pagewise-toolbar.is-vertical .pagewise-toolbar-button.has-menu > .pagewise-chevron:last-child {
-  position: absolute;
-  top: 50%;
-  left: calc(50% + 8px);
-  transform: translateY(-50%);
-}
-
-/* Menus open to the right in vertical mode; the dropdown chevrons point there. */
-.pagewise-toolbar.is-vertical .pagewise-toolbar-button.has-menu > .pagewise-chevron:last-child svg {
-  transform: rotate(-90deg);
-}
-
-/* ---------- Properties sidebar view ----------
- * Obsidian's key column claims a fixed share of the pane, wasting the space after
- * short keys like "type" and "tags". Narrow it in the sidebar view only; the value
- * column takes the remainder. In-note properties keep Obsidian's own layout.
- */
-
-.workspace-leaf-content[data-type="file-properties"] .metadata-content {
+/* One continuous surface: no dividers, a little air between rows, a soft row hover.
+ * The key column keeps 0.24's 84px, narrow enough that a date-time value fits whole
+ * in a standard-width sidebar; values take the rest. */
+.workspace-leaf-content[data-type="file-properties"].pagewise-inspector .metadata-container {
+  --metadata-divider-width: 0;
   --metadata-label-width: 84px;
+  --metadata-property-radius: var(--radius-s);
+  --metadata-property-radius-hover: var(--radius-s);
+  --metadata-property-radius-focus: var(--radius-s);
+  --metadata-property-background-hover: var(--background-modifier-hover);
 }
 
-.workspace-leaf-content[data-type="file-properties"] .metadata-property-key {
-  width: 84px;
-  min-width: 84px;
-  flex-shrink: 0;
+.workspace-leaf-content[data-type="file-properties"].pagewise-inspector .metadata-properties {
+  --metadata-gap: 2px;
 }
 
-.workspace-leaf-content[data-type="file-properties"] .metadata-property-value {
-  flex-grow: 1;
+/* Lists with values put the label above them, as Obsidian itself does in a narrow
+ * sidebar. Empty lists and single values stay as compact rows. */
+.pagewise-inspector .metadata-property:has(> .metadata-property-value:is([data-property-type="multitext"], [data-property-type="aliases"], [data-property-type="tags"]) .multi-select-pill) {
+  flex-wrap: wrap;
+}
+
+.pagewise-inspector .metadata-property:has(> .metadata-property-value:is([data-property-type="multitext"], [data-property-type="aliases"], [data-property-type="tags"]) .multi-select-pill) > .metadata-property-key {
+  width: 100%;
+  min-width: 0;
+}
+
+.pagewise-inspector .metadata-property:has(> .metadata-property-value:is([data-property-type="multitext"], [data-property-type="aliases"], [data-property-type="tags"]) .multi-select-pill) > .metadata-property-value {
+  margin-top: -2px;
+  padding-inline-start: calc(var(--icon-size) + var(--size-4-1));
+}
+
+/* List items (related notes, aliases) as full-width rows: long titles wrap instead of
+ * truncating, and every remove control sits at the same right edge. */
+.pagewise-inspector .metadata-property-value:is([data-property-type="multitext"], [data-property-type="aliases"]) .multi-select-container {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: 0;
+}
+
+.pagewise-inspector .metadata-property-value:is([data-property-type="multitext"], [data-property-type="aliases"]) .multi-select-pill {
+  --pill-background-hover: var(--background-modifier-hover);
+  align-items: flex-start;
+  gap: var(--size-4-2);
+  padding: 3px 0 3px var(--size-2-2);
+  border-radius: var(--radius-s);
+}
+
+.pagewise-inspector .metadata-property-value:is([data-property-type="multitext"], [data-property-type="aliases"]) .multi-select-pill-content {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
+}
+
+.pagewise-inspector .metadata-property-value:is([data-property-type="multitext"], [data-property-type="aliases"]) .multi-select-pill-remove-button {
+  flex: none;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin-block: -3px;
+  margin-inline: auto 0;
+}
+
+/* The empty slot for a new item stays clickable but takes only a short line. */
+.pagewise-inspector .metadata-property-value:is([data-property-type="multitext"], [data-property-type="aliases"]) .multi-select-input {
+  max-width: none;
+  min-height: 0;
+  padding-block: 2px;
+  padding-inline-start: var(--size-2-2);
+  line-height: var(--line-height-tight);
+}
+
+/* Tags stay inline tokens in the theme's tag colours, a step quieter. */
+.pagewise-inspector .metadata-property-value[data-property-type="tags"] .multi-select-pill {
+  --pill-background: color-mix(in srgb, var(--tag-background, transparent), transparent 35%);
+  --pill-weight: normal;
+}
+
+.pagewise-inspector .metadata-property-value[data-property-type="tags"] .multi-select-pill-remove-button {
+  justify-content: center;
+  min-width: 20px;
+  min-height: 20px;
+}
+
+/* Easy to find, never the strongest thing in the view. */
+.pagewise-inspector .metadata-add-button {
+  margin-top: var(--size-4-2);
+  color: var(--text-muted);
+}
+
+.pagewise-inspector .metadata-add-button:hover {
+  color: var(--text-normal);
 }
 
 /* ---------- Linked mentions as cards ----------

@@ -1,9 +1,10 @@
-import { Plugin } from "obsidian";
+import { debounce, Plugin } from "obsidian";
 import { PaginationController } from "./pagination/controller";
 import { PropertiesSidebar } from "./properties/propertiesSidebar";
 import { normalizeSettings, type PagewiseSettings } from "./settings";
 import { PagewiseSettingTab, type SettingsHost } from "./settingsTab";
 import { NoteToolbar } from "./toolbar/noteToolbar";
+import { markdownViews } from "./workspace";
 
 /**
  * Composition root: builds the components, connects them to Obsidian's events, and
@@ -14,12 +15,21 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
   settings!: PagewiseSettings;
   private controller!: PaginationController;
   private toolbar!: NoteToolbar;
+  private propertiesSidebar!: PropertiesSidebar;
+  /**
+   * The Properties view updates a moment after the active note changes, so its
+   * inspector mark and the toolbar's pressed state are read after it settles.
+   */
+  private readonly syncInspector = debounce(() => this.syncInspectorNow(), 50, true);
 
   async onload(): Promise<void> {
     this.settings = normalizeSettings(await this.loadData());
     this.controller = new PaginationController(this.app, this.settings);
-    const propertiesSidebar = new PropertiesSidebar(this.app);
-    this.toolbar = new NoteToolbar(this.app, { toggleProperties: () => propertiesSidebar.toggle() });
+    this.propertiesSidebar = new PropertiesSidebar(this.app);
+    this.toolbar = new NoteToolbar(this.app, {
+      toggleProperties: (view) => this.propertiesSidebar.toggle(view.file),
+      propertiesShown: (view) => this.propertiesSidebar.isShownFor(view.file),
+    });
 
     this.addCommand({
       id: "toggle-paginated-view",
@@ -36,8 +46,10 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
   }
 
   onunload(): void {
+    this.syncInspector.cancel();
     this.controller.dispose();
     this.toolbar.dispose();
+    this.propertiesSidebar.dispose();
   }
 
   /** Routes the toggle by scope: one ephemeral pane, or the persisted every-note state. */
@@ -79,13 +91,32 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
         this.syncToolbar();
       })
     );
-    this.registerEvent(workspace.on("active-leaf-change", () => this.controller.requestLayout()));
+    this.registerEvent(
+      workspace.on("active-leaf-change", () => {
+        this.controller.requestLayout();
+        this.syncInspector();
+      })
+    );
     this.registerEvent(workspace.on("css-change", () => this.controller.requestLayout()));
+    // Fires when a sidebar opens or closes, which changes what Properties shows.
+    this.registerEvent(workspace.on("resize", () => this.syncInspector()));
+    this.registerEvent(this.app.vault.on("rename", () => this.syncInspector()));
     this.registerDomEvent(window, "resize", () => this.controller.requestLayout());
   }
 
-  /** Every paginated pane carries the note toolbar; unpaginated panes carry none. */
+  /** Every paginated pane carries the document toolbar; unpaginated panes carry none. */
   private syncToolbar(): void {
-    this.toolbar.sync((view) => this.controller.isPaginated(view), this.settings.toolbarDirection);
+    this.toolbar.sync((view) => this.controller.isPaginated(view));
+    this.syncInspector();
+  }
+
+  /** Marks the Properties views showing paginated notes, and updates the toolbars' Properties state. */
+  private syncInspectorNow(): void {
+    const paginated = new Set<string>();
+    markdownViews(this.app).forEach((view) => {
+      if (view.file && this.controller.isPaginated(view)) paginated.add(view.file.path);
+    });
+    this.propertiesSidebar.syncInspectors(paginated);
+    this.toolbar.refreshState();
   }
 }

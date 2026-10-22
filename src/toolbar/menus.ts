@@ -18,6 +18,13 @@ export interface MenuEntry {
 const MENU_CLASS = "pagewise-menu";
 
 /**
+ * Obsidian's Menu keeps a single hide callback, so a second onHide() silently
+ * replaces the first. Pagewise menus register hide listeners here instead, and
+ * createMenu installs one callback that runs them all.
+ */
+const hideListeners = new WeakMap<Menu, (() => void)[]>();
+
+/**
  * A Pagewise menu. Obsidian's native macOS menus drop custom icons, so these always
  * render as Obsidian's own HTML menus; the class lets the stylesheet restore menu
  * icons in themes (such as Minimal) that hide them.
@@ -26,7 +33,17 @@ export function createMenu(): Menu {
   const menu = new Menu();
   menu.setUseNativeMenu(false);
   menuDom(menu)?.classList.add(MENU_CLASS);
+  const listeners: (() => void)[] = [];
+  hideListeners.set(menu, listeners);
+  menu.onHide(() => listeners.forEach((listener) => listener()));
   return menu;
+}
+
+/** Runs the listener when the menu closes, alongside any other listener already registered. */
+export function whenHidden(menu: Menu, listener: () => void): void {
+  const listeners = hideListeners.get(menu);
+  if (listeners) listeners.push(listener);
+  else menu.onHide(listener);
 }
 
 /** Adds a plain entry; a disabled entry shows greyed out and does nothing. */
@@ -90,7 +107,7 @@ export function addSubmenu(menu: Menu, title: string, icon: IconChoice, entries:
     menuDom(menu)?.addEventListener("mouseover", (event) => {
       if (event.target instanceof Node && !itemDom.contains(event.target)) close();
     });
-    menu.onHide(close);
+    whenHidden(menu, close);
   });
 }
 

@@ -17,3 +17,8 @@ test("falls back to defaults for invalid or missing values", () => {
   assert.deepEqual(settings, DEFAULT_SETTINGS);
   assert.deepEqual(normalizeSettings(null), DEFAULT_SETTINGS);
 });
+
+test("keeps the legacy toolbarDirection value so a rollback to 0.24 finds it", () => {
+  const stored = { ...DEFAULT_SETTINGS, toolbarDirection: "vertical" };
+  assert.equal(normalizeSettings(stored).toolbarDirection, "vertical");
+});

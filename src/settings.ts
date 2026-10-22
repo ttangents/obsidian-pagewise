@@ -22,7 +22,11 @@ export interface PagewiseSettings {
   gapPx: number;
   /** What happens to the in-note Properties panel while a pane is paginated. */
   propertiesMode: PropertiesMode;
-  /** Which way the collapsed toolbar expands: a horizontal tray or a vertical one. */
+  /**
+   * Legacy, unused since 0.25.0: the floating toolbar's expansion direction. The
+   * document toolbar has one fixed layout. The key stays in the schema so a saved
+   * value survives, and an install rolled back to 0.24.x finds it unchanged.
+   */
   toolbarDirection: ToolbarDirection;
 }
 
