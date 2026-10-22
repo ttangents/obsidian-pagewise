@@ -26,13 +26,25 @@ function splitList(prelude: string): string[] {
   return parts;
 }
 
+/**
+ * Every selector in the stylesheet. A character scan rather than a regular
+ * expression: declaration blocks hold inline images hundreds of kilobytes long,
+ * which make a backtracking pattern effectively never finish.
+ */
 function selectors(css: string): string[] {
   const stripped = css.replace(/\/\*[\s\S]*?\*\//g, "");
   const found: string[] = [];
-  for (const match of stripped.matchAll(/([^{}]+)\{/g)) {
-    const prelude = match[1].trim();
-    if (prelude.startsWith("@")) continue;
-    found.push(...splitList(prelude));
+  let buffer = "";
+  for (const char of stripped) {
+    if (char === "{") {
+      const prelude = buffer.trim();
+      if (prelude && !prelude.startsWith("@")) found.push(...splitList(prelude));
+      buffer = "";
+    } else if (char === "}" || char === ";") {
+      buffer = "";
+    } else {
+      buffer += char;
+    }
   }
   return found;
 }

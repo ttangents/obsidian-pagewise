@@ -1,0 +1,566 @@
+/*
+ * Pagewise — paginated, word-processor style sheet layout.
+ *
+ * Every color and font comes from the active theme's variables so the sheets adopt
+ * whatever theme is loaded. Geometry arrives as CSS variables set on <body> by the plugin:
+ *   --pagewise-page-width, --pagewise-page-height, --pagewise-margin, --pagewise-gap
+ */
+
+/* Activation is per pane: the plugin sets this class on one note's container, never on <body>.
+ *
+ * The visual vocabulary, defined once per appearance. Every value derives from the
+ * active theme. Attention runs from the document outward: the sheet is quietly
+ * present, the canvas recedes, and the tools stay small. Edges come from tone and
+ * a hairline before any shadow.
+ */
+.workspace-leaf-content[data-type="markdown"].pagewise-active {
+  --pagewise-sheet: var(--background-primary);
+  /* Canvas: the sheet's own tone, faintly tinted with the theme's text colour. */
+  --pagewise-ground: color-mix(in srgb, var(--background-primary), var(--text-normal) 6%);
+  --pagewise-edge: color-mix(in srgb, var(--background-modifier-border), transparent 10%);
+  --pagewise-shadow:
+    0 0 0 1px var(--pagewise-edge),
+    0 1px 3px rgba(0, 0, 0, 0.05);
+  --pagewise-hairline: color-mix(in srgb, var(--background-modifier-border), transparent 30%);
+  --pagewise-toolbar-shadow:
+    0 0 0 1px var(--pagewise-hairline),
+    0 1px 2px rgba(0, 0, 0, 0.04);
+  --pagewise-card-bg: color-mix(in srgb, var(--background-primary), var(--text-normal) 2.5%);
+  --pagewise-radius-card: 8px;
+  --pagewise-radius-mark: 3px;
+  --pagewise-break-height: calc(var(--pagewise-margin) * 2 + var(--pagewise-gap));
+}
+
+/* Dark mode: the canvas sits a step below the sheet; shadows all but disappear. */
+.theme-dark .workspace-leaf-content[data-type="markdown"].pagewise-active {
+  --pagewise-ground: color-mix(in srgb, var(--background-primary), black 22%);
+  --pagewise-edge: color-mix(in srgb, var(--background-modifier-border), transparent 5%);
+  --pagewise-shadow:
+    0 0 0 1px var(--pagewise-edge),
+    0 1px 3px rgba(0, 0, 0, 0.18);
+  --pagewise-toolbar-shadow:
+    0 0 0 1px var(--pagewise-hairline),
+    0 1px 2px rgba(0, 0, 0, 0.20);
+  --pagewise-card-bg: color-mix(in srgb, var(--background-primary), var(--text-normal) 3.5%);
+}
+
+/* ---------- Reading view ---------- */
+
+.workspace-leaf-content[data-type="markdown"].pagewise-active .markdown-preview-view {
+  background-color: var(--pagewise-ground);
+  padding: var(--pagewise-gap) 0;
+}
+
+.workspace-leaf-content[data-type="markdown"].pagewise-active .markdown-preview-view .markdown-preview-sizer {
+  box-sizing: border-box;
+  width: var(--pagewise-page-width);
+  max-width: var(--pagewise-page-width);
+  min-height: var(--pagewise-page-height);
+  margin: 0 auto var(--pagewise-gap);
+  padding: var(--pagewise-margin) !important;
+  background-color: var(--pagewise-sheet);
+  box-shadow: var(--pagewise-shadow);
+  --file-line-width: calc(var(--pagewise-page-width) - var(--pagewise-margin) * 2);
+}
+
+/* Themes often draw the Properties panel as a card; on a sheet that chrome reads as UI, not paper. */
+.workspace-leaf-content[data-type="markdown"].pagewise-active .markdown-preview-view .metadata-container,
+.workspace-leaf-content[data-type="markdown"].pagewise-active .markdown-source-view.mod-cm6 .metadata-container {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  border-radius: 0;
+  padding-inline: 0;
+}
+
+/* Sidebar mode: the panel leaves the sheet entirely; the core Properties view carries it. */
+.workspace-leaf-content[data-type="markdown"].pagewise-active.pagewise-props-hidden .markdown-preview-view .metadata-container,
+.workspace-leaf-content[data-type="markdown"].pagewise-active.pagewise-props-hidden .markdown-source-view.mod-cm6 .metadata-container {
+  display: none;
+}
+
+/* The collapsed Properties heading is UI, not page content: keep it quiet but visible. */
+.pagewise-active .metadata-container.is-collapsed .metadata-properties-heading {
+  opacity: 0.35;
+  transition: opacity 120ms ease;
+}
+
+.pagewise-active .metadata-container.is-collapsed:hover .metadata-properties-heading {
+  opacity: 1;
+}
+
+/* A collapsed Properties panel should take only its heading's height. */
+.pagewise-active .metadata-container.is-collapsed {
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.pagewise-active .metadata-container.is-collapsed .metadata-content,
+.pagewise-active .metadata-container.is-collapsed .metadata-properties,
+.pagewise-active .metadata-container.is-collapsed .metadata-add-button {
+  display: none;
+}
+
+/* Page break spacer: transparent for the fill portion, then paints the ground between sheets.
+ * Both spacers anchor their page number (::before); the break also paints the ground (::after). */
+.pagewise-active .pagewise-break,
+.pagewise-active .pagewise-tail {
+  position: relative;
+  pointer-events: none;
+}
+
+.pagewise-active .pagewise-break::after {
+  content: "";
+  position: absolute;
+  left: calc(var(--pagewise-margin) * -1);
+  right: calc(var(--pagewise-margin) * -1);
+  bottom: 0;
+  height: var(--pagewise-break-height);
+  background-color: var(--pagewise-ground);
+  /* The gap closes one sheet and opens the next with the sheet's own hairline. The two
+   * offset shadows paint canvas 7px past each side, over the sheet's outer edge and
+   * shadow, so the gap reads as space between separate sheets. Shadows paint without
+   * adding scrollable area, so narrow panes scroll exactly as before. */
+  box-shadow:
+    inset 0 1px 0 var(--pagewise-edge),
+    inset 0 -1px 0 var(--pagewise-edge),
+    -7px 0 0 0 var(--pagewise-ground),
+    7px 0 0 0 var(--pagewise-ground);
+}
+
+/* Page number, set in the bottom margin of the sheet the spacer closes. */
+.pagewise-active .pagewise-break[data-page]::before,
+.pagewise-active .pagewise-tail[data-page]::before {
+  content: attr(data-page);
+  position: absolute;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: var(--font-smallest, 0.75em);
+  line-height: 1;
+  color: var(--text-faint);
+}
+
+/* Centered in the ending sheet's bottom-margin band, above the gap and the next sheet's top margin. */
+.pagewise-active .pagewise-break[data-page]::before {
+  bottom: calc(var(--pagewise-gap) + var(--pagewise-margin) * 1.5);
+}
+
+/* The last sheet's number sits in the sizer's own bottom padding. */
+.pagewise-active .pagewise-tail[data-page]::before {
+  bottom: calc(var(--pagewise-margin) * -0.5);
+}
+
+/* ---------- Live Preview and Source mode (sheet styling only; no page breaks) ---------- */
+
+/* Child combinators: table cells host nested editors that must not become sheets. */
+.workspace-leaf-content[data-type="markdown"].pagewise-active .markdown-source-view.mod-cm6 > .cm-editor > .cm-scroller {
+  background-color: var(--pagewise-ground);
+  padding: var(--pagewise-gap) 0;
+}
+
+.workspace-leaf-content[data-type="markdown"].pagewise-active .markdown-source-view.mod-cm6 > .cm-editor > .cm-scroller > .cm-sizer {
+  box-sizing: border-box;
+  width: var(--pagewise-page-width);
+  max-width: var(--pagewise-page-width) !important;
+  min-height: var(--pagewise-page-height);
+  margin: 0 auto var(--pagewise-gap);
+  padding: var(--pagewise-margin) !important;
+  background-color: var(--pagewise-sheet);
+  box-shadow: var(--pagewise-shadow);
+  --file-line-width: calc(var(--pagewise-page-width) - var(--pagewise-margin) * 2);
+}
+
+.pagewise-active .markdown-source-view.mod-cm6 .cm-contentContainer,
+.pagewise-active .markdown-source-view.mod-cm6 .cm-content {
+  background-color: transparent;
+}
+
+/* ---------- Document toolbar ----------
+ * A fixed bar between the view header and the canvas, on paginated panes only.
+ * NoteToolbar inserts it; the content view gives up exactly the bar's height, so the
+ * bar never overlaps the sheet or the find bar and never enters pagination.
+ */
+
+.workspace-leaf-content.pagewise-has-toolbar > .view-content {
+  height: auto;
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.pagewise-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--size-4-2);
+  flex: 0 0 auto;
+  min-width: 0;
+  padding: var(--size-4-1) var(--size-4-3);
+  background-color: var(--background-primary);
+  border-bottom: 1px solid var(--pagewise-hairline, var(--background-modifier-border));
+}
+
+/* Groups are told apart by space alone; controls inside a group sit close. */
+.pagewise-toolbar-groups {
+  display: flex;
+  align-items: center;
+  gap: var(--size-4-4);
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.pagewise-toolbar-group,
+.pagewise-toolbar-trailing {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+}
+
+/* Controls the pane is too narrow for live in the More menu instead. */
+.pagewise-toolbar .pagewise-toolbar-button.is-overflowed,
+.pagewise-toolbar .pagewise-toolbar-group.is-empty {
+  display: none;
+}
+
+/* Reading view has no editor, so only Properties remains. */
+.workspace-leaf-content[data-mode="preview"] .pagewise-toolbar-groups,
+.workspace-leaf-content[data-mode="preview"] .pagewise-toolbar .pagewise-toolbar-more {
+  display: none;
+}
+
+.pagewise-toolbar .pagewise-toolbar-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  height: 28px;
+  min-width: 28px;
+  margin: 0;
+  padding: 0 6px;
+  background: none;
+  border: none;
+  box-shadow: none;
+  border-radius: var(--radius-s);
+  color: var(--text-muted);
+  opacity: 1;
+  cursor: var(--cursor);
+}
+
+.pagewise-toolbar .pagewise-toolbar-button:hover {
+  color: var(--text-normal);
+  background-color: var(--background-modifier-hover);
+}
+
+/* An open menu and a showing Properties view both read as "on". */
+.pagewise-toolbar .pagewise-toolbar-button[aria-expanded="true"],
+.pagewise-toolbar .pagewise-toolbar-button[aria-pressed="true"] {
+  color: var(--text-normal);
+  background-color: var(--background-modifier-active-hover, var(--background-modifier-hover));
+}
+
+/* The groups clip their overflow, which would cut an outside ring; draw it inside. */
+.pagewise-toolbar .pagewise-toolbar-button:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--background-modifier-border-focus);
+}
+
+.pagewise-toolbar .pagewise-toolbar-button svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 1.75px;
+}
+
+.pagewise-toolbar-icon,
+.pagewise-toolbar-chevron {
+  display: flex;
+}
+
+.pagewise-toolbar .pagewise-toolbar-chevron {
+  color: var(--text-faint);
+}
+
+.pagewise-toolbar .pagewise-toolbar-chevron svg {
+  width: 10px;
+  height: 10px;
+  stroke-width: 2px;
+}
+
+@media (forced-colors: active) {
+  .pagewise-toolbar .pagewise-toolbar-button[aria-pressed="true"],
+  .pagewise-toolbar .pagewise-toolbar-button[aria-expanded="true"] {
+    outline: 1px solid CanvasText;
+  }
+}
+
+/* Themes like Minimal hide every menu icon; restore them in Pagewise's own menus only. */
+.menu.pagewise-menu .menu-item-icon {
+  display: flex !important;
+  width: auto !important;
+}
+
+.menu.pagewise-menu .menu-item-icon svg {
+  display: block !important;
+  width: var(--icon-size, 16px) !important;
+  height: var(--icon-size, 16px) !important;
+}
+
+/* Hotkey hints in Pagewise menus, right-aligned like Bear's. */
+.menu.pagewise-menu .pagewise-hotkey {
+  margin-left: auto;
+  padding-left: 24px;
+  color: var(--text-faint);
+  font-size: var(--font-smallest, 0.85em);
+}
+
+/* Submenu indicator on entries that open a submenu, matching Obsidian's own. */
+.menu.pagewise-menu .pagewise-submenu-arrow {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+  padding-left: 24px;
+  color: var(--text-faint);
+}
+
+.menu.pagewise-menu .pagewise-submenu-arrow svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* ---------- Properties inspector ----------
+ * Applies only to a core Properties view showing a paginated note; PropertiesSidebar
+ * sets .pagewise-inspector on it. Every editor stays Obsidian's own: these rules set
+ * Obsidian's metadata variables and spacing, and never hide or reorder a property.
+ */
+
+.workspace-leaf-content[data-type="file-properties"].pagewise-inspector .pagewise-inspector-header {
+  padding: var(--size-4-1) var(--size-4-2) var(--size-4-3);
+}
+
+.pagewise-inspector .pagewise-inspector-title {
+  font-size: var(--font-ui-small);
+  font-weight: var(--font-semibold);
+  line-height: var(--line-height-tight);
+  color: var(--text-normal);
+}
+
+.pagewise-inspector .pagewise-inspector-file {
+  margin-top: 2px;
+  font-size: var(--font-ui-smaller);
+  line-height: var(--line-height-tight);
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* One continuous surface: no dividers, a little air between rows, a soft row hover.
+ * The key column keeps 0.24's 84px, narrow enough that a date-time value fits whole
+ * in a standard-width sidebar; values take the rest. */
+.workspace-leaf-content[data-type="file-properties"].pagewise-inspector .metadata-container {
+  --metadata-divider-width: 0;
+  --metadata-label-width: 84px;
+  --metadata-property-radius: var(--radius-s);
+  --metadata-property-radius-hover: var(--radius-s);
+  --metadata-property-radius-focus: var(--radius-s);
+  --metadata-property-background-hover: var(--background-modifier-hover);
+}
+
+.workspace-leaf-content[data-type="file-properties"].pagewise-inspector .metadata-properties {
+  --metadata-gap: 2px;
+}
+
+/* Lists with values put the label above them, as Obsidian itself does in a narrow
+ * sidebar. Empty lists and single values stay as compact rows. */
+.pagewise-inspector .metadata-property:has(> .metadata-property-value:is([data-property-type="multitext"], [data-property-type="aliases"], [data-property-type="tags"]) .multi-select-pill) {
+  flex-wrap: wrap;
+}
+
+.pagewise-inspector .metadata-property:has(> .metadata-property-value:is([data-property-type="multitext"], [data-property-type="aliases"], [data-property-type="tags"]) .multi-select-pill) > .metadata-property-key {
+  width: 100%;
+  min-width: 0;
+}
+
+.pagewise-inspector .metadata-property:has(> .metadata-property-value:is([data-property-type="multitext"], [data-property-type="aliases"], [data-property-type="tags"]) .multi-select-pill) > .metadata-property-value {
+  margin-top: -2px;
+  padding-inline-start: calc(var(--icon-size) + var(--size-4-1));
+}
+
+/* List items (related notes, aliases) as full-width rows: long titles wrap instead of
+ * truncating, and every remove control sits at the same right edge. */
+.pagewise-inspector .metadata-property-value:is([data-property-type="multitext"], [data-property-type="aliases"]) .multi-select-container {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: 0;
+}
+
+.pagewise-inspector .metadata-property-value:is([data-property-type="multitext"], [data-property-type="aliases"]) .multi-select-pill {
+  --pill-background-hover: var(--background-modifier-hover);
+  align-items: flex-start;
+  gap: var(--size-4-2);
+  padding: 3px 0 3px var(--size-2-2);
+  border-radius: var(--radius-s);
+}
+
+.pagewise-inspector .metadata-property-value:is([data-property-type="multitext"], [data-property-type="aliases"]) .multi-select-pill-content {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
+}
+
+.pagewise-inspector .metadata-property-value:is([data-property-type="multitext"], [data-property-type="aliases"]) .multi-select-pill-remove-button {
+  flex: none;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  margin-block: -3px;
+  margin-inline: auto 0;
+}
+
+/* The empty slot for a new item stays clickable but takes only a short line. */
+.pagewise-inspector .metadata-property-value:is([data-property-type="multitext"], [data-property-type="aliases"]) .multi-select-input {
+  max-width: none;
+  min-height: 0;
+  padding-block: 2px;
+  padding-inline-start: var(--size-2-2);
+  line-height: var(--line-height-tight);
+}
+
+/* Tags stay inline tokens in the theme's tag colours, a step quieter. */
+.pagewise-inspector .metadata-property-value[data-property-type="tags"] .multi-select-pill {
+  --pill-background: color-mix(in srgb, var(--tag-background, transparent), transparent 35%);
+  --pill-weight: normal;
+}
+
+.pagewise-inspector .metadata-property-value[data-property-type="tags"] .multi-select-pill-remove-button {
+  justify-content: center;
+  min-width: 20px;
+  min-height: 20px;
+}
+
+/* Easy to find, never the strongest thing in the view. */
+.pagewise-inspector .metadata-add-button {
+  margin-top: var(--size-4-2);
+  color: var(--text-muted);
+}
+
+.pagewise-inspector .metadata-add-button:hover {
+  color: var(--text-normal);
+}
+
+/* ---------- Linked mentions as cards ----------
+ * Card styling for the in-document linked mentions panel, active only while the pane
+ * is paginated; unpaginated panes and the sidebar Backlinks pane keep stock Obsidian.
+ * Layout uses CSS multi-column flow, not grid: Obsidian lazy-renders this panel with
+ * zero-height measurement elements between results, which a grid turns into occupied
+ * cells and stretched rows. Column flow packs the cards and ignores them.
+ * Adapted from the user's backlink-cards.css snippet, 2026-09-18.
+ */
+
+.workspace-leaf-content[data-type="markdown"].pagewise-active .embedded-backlinks .search-result-container,
+.workspace-leaf-content[data-type="markdown"].pagewise-active .embedded-backlinks .search-result-container > .search-results-children {
+  display: block !important;
+  width: 100%;
+  max-width: none;
+}
+
+.workspace-leaf-content[data-type="markdown"].pagewise-active .embedded-backlinks .search-result-container > .search-results-children {
+  columns: 2 !important;
+  column-gap: 14px !important;
+  padding: 8px 0 16px;
+}
+
+/* Each source note = one card; never split across columns */
+.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .search-result {
+  break-inside: avoid;
+  -webkit-column-break-inside: avoid;
+  display: block;
+  background: var(--pagewise-card-bg);
+  border: 1px solid var(--pagewise-hairline);
+  border-radius: var(--pagewise-radius-card);
+  padding: 12px 14px 14px;
+  margin: 0 0 14px 0 !important;
+  box-shadow: none;
+  transition: border-color 140ms ease;
+}
+
+.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .search-result:hover {
+  border-color: var(--background-modifier-border);
+}
+
+/* Source title: small, single line, and the strongest text on the card. The divider
+ * keeps its 1px of height but no longer draws. */
+.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .search-result-file-title {
+  font-size: 0.82em;
+  font-weight: 600;
+  color: var(--text-normal);
+  padding: 0 0 8px 0;
+  margin-bottom: 8px;
+  border: none;
+  border-bottom: 1px solid transparent;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: transparent;
+}
+
+.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .search-result-file-title:hover {
+  background: transparent;
+  color: var(--text-normal);
+}
+
+/* Hide chevron and per-file match count */
+.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .search-result-file-title .collapse-icon,
+.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .search-result-file-title .tree-item-flair-outer {
+  display: none;
+}
+
+.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .search-result-file-title .tree-item-inner {
+  padding-left: 0;
+}
+
+/* Card body */
+.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .search-result-file-matches {
+  padding: 0;
+  margin: 0;
+  box-shadow: none;
+  background: transparent;
+  border: none;
+}
+
+.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .search-result-file-match {
+  font-size: 0.95em;
+  line-height: 1.5;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  /* The excerpt rule keeps its 3px of width but no longer draws: the card already
+   * groups its excerpts. */
+  border-left: 3px solid transparent;
+  border-radius: var(--pagewise-radius-mark);
+  padding: 2px 0 2px 10px;
+  margin: 0 0 10px 0;
+  transition: border-color 140ms ease, background-color 140ms ease;
+}
+
+.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .search-result-file-match:last-child {
+  margin-bottom: 0;
+}
+
+.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .search-result-file-match:hover {
+  background: var(--background-modifier-hover);
+}
+
+/* The mention of this note: full-strength text on a soft neutral tint, so the match
+ * stays identifiable inside the muted excerpt. */
+.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .search-result-file-matched-text {
+  background: color-mix(in srgb, var(--text-normal) 8%, transparent);
+  color: var(--text-normal);
+  border-radius: var(--pagewise-radius-mark);
+  padding: 1px 4px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}

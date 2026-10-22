@@ -4,6 +4,7 @@ import { PropertiesSidebar } from "./properties/propertiesSidebar";
 import { normalizeSettings, type PagewiseSettings } from "./settings";
 import { PagewiseSettingTab, type SettingsHost } from "./settingsTab";
 import { NoteToolbar } from "./toolbar/noteToolbar";
+import { PATTERN_ATTRIBUTE } from "./appearance/backgrounds";
 import { markdownViews } from "./workspace";
 
 /**
@@ -29,6 +30,8 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
     this.toolbar = new NoteToolbar(this.app, {
       toggleProperties: (view) => this.propertiesSidebar.toggle(view.file),
       propertiesShown: (view) => this.propertiesSidebar.isShownFor(view.file),
+      background: () => this.settings.background,
+      setBackground: (id) => void this.updateSettings({ background: id }),
     });
 
     this.addCommand({
@@ -50,6 +53,7 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
     this.controller.dispose();
     this.toolbar.dispose();
     this.propertiesSidebar.dispose();
+    markdownViews(this.app).forEach((view) => view.containerEl.removeAttribute(PATTERN_ATTRIBUTE));
   }
 
   /** Routes the toggle by scope: one ephemeral pane, or the persisted every-note state. */
@@ -106,8 +110,18 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
 
   /** Every paginated pane carries the document toolbar; unpaginated panes carry none. */
   private syncToolbar(): void {
+    this.syncBackground();
     this.toolbar.sync((view) => this.controller.isPaginated(view));
     this.syncInspector();
+  }
+
+  /** Marks each paginated pane with the chosen pattern; plain and unpaginated panes carry none. */
+  private syncBackground(): void {
+    const pattern = this.settings.background;
+    markdownViews(this.app).forEach((view) => {
+      if (pattern !== "plain" && this.controller.isPaginated(view)) view.containerEl.setAttribute(PATTERN_ATTRIBUTE, pattern);
+      else view.containerEl.removeAttribute(PATTERN_ATTRIBUTE);
+    });
   }
 
   /** Marks the Properties views showing paginated notes, and updates the toolbars' Properties state. */

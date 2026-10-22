@@ -1,0 +1,259 @@
+
+/* ---------- Canvas backgrounds ----------
+ * The CSS half of BACKGROUNDS in src/appearance/backgrounds.ts. The patterns and
+ * their tiles come from Home Cards. Each pattern is a pair of seamless tiles, light
+ * and dark, carried on custom properties declared only on paginated panes, so the
+ * inline images stay out of every other element's cascade. The toolbar's palette
+ * lives inside the pane and inherits them, so a swatch always previews exactly what
+ * the canvas will paint. Plain sets no attribute, and no rule here fires.
+ *
+ * Each tile carries a veil: the share of the canvas colour laid over it. Home Cards
+ * calibrates its veils so every pattern carries about the same weight behind cards.
+ * A page is read for longer than a card is scanned, so these veils keep 60% of the
+ * ink Home Cards keeps: the pattern stays a texture at the edge of attention.
+ */
+
+.workspace-leaf-content[data-type="markdown"].pagewise-active {
+  --pagewise-bg-diamonds: url("@tile:diamonds-light@");
+  --pagewise-veil-diamonds: 92%;
+  --pagewise-bg-leaves: url("@tile:leaves-light@");
+  --pagewise-veil-leaves: 93%;
+  --pagewise-bg-stitches: url("@tile:stitches-light@");
+  --pagewise-veil-stitches: 89%;
+  --pagewise-bg-suns: url("@tile:suns-light@");
+  --pagewise-veil-suns: 89%;
+  --pagewise-bg-grid: url("@tile:grid-light@");
+  --pagewise-veil-grid: 78%;
+  --pagewise-bg-rain: url("@tile:rain-light@");
+  --pagewise-veil-rain: 73%;
+  --pagewise-bg-squares: url("@tile:squares-light@");
+  --pagewise-veil-squares: 73%;
+  --pagewise-bg-polka: url("@tile:polka-light@");
+  --pagewise-veil-polka: 87%;
+  --pagewise-bg-basket: url("@tile:basket-light@");
+  --pagewise-veil-basket: 87%;
+  --pagewise-bg-pebbles: url("@tile:pebbles-light@");
+  --pagewise-veil-pebbles: 76%;
+  --pagewise-bg-confetti: url("@tile:confetti-light@");
+  --pagewise-veil-confetti: 78%;
+  --pagewise-bg-petals: url("@tile:petals-light@");
+  --pagewise-veil-petals: 90%;
+  --pagewise-bg-paws: url("@tile:paws-light@");
+  --pagewise-veil-paws: 90%;
+}
+
+.theme-dark .workspace-leaf-content[data-type="markdown"].pagewise-active {
+  --pagewise-bg-diamonds: url("@tile:diamonds-dark@");
+  --pagewise-veil-diamonds: 91%;
+  --pagewise-bg-leaves: url("@tile:leaves-dark@");
+  --pagewise-veil-leaves: 93%;
+  --pagewise-bg-stitches: url("@tile:stitches-dark@");
+  --pagewise-veil-stitches: 94%;
+  --pagewise-bg-suns: url("@tile:suns-dark@");
+  --pagewise-veil-suns: 91%;
+  --pagewise-bg-grid: url("@tile:grid-dark@");
+  --pagewise-veil-grid: 75%;
+  --pagewise-bg-rain: url("@tile:rain-dark@");
+  --pagewise-veil-rain: 70%;
+  --pagewise-bg-squares: url("@tile:squares-dark@");
+  --pagewise-veil-squares: 70%;
+  --pagewise-bg-polka: url("@tile:polka-dark@");
+  --pagewise-veil-polka: 91%;
+  --pagewise-bg-basket: url("@tile:basket-dark@");
+  --pagewise-veil-basket: 93%;
+  --pagewise-bg-pebbles: url("@tile:pebbles-dark@");
+  --pagewise-veil-pebbles: 91%;
+  --pagewise-bg-confetti: url("@tile:confetti-dark@");
+  --pagewise-veil-confetti: 93%;
+  --pagewise-bg-petals: url("@tile:petals-dark@");
+  --pagewise-veil-petals: 93%;
+  --pagewise-bg-paws: url("@tile:paws-dark@");
+  --pagewise-veil-paws: 93%;
+}
+
+.pagewise-active[data-pagewise-pattern="diamonds"],
+.pagewise-swatch[data-pagewise-pattern="diamonds"] {
+  --pagewise-tile: var(--pagewise-bg-diamonds);
+  --pagewise-veil: var(--pagewise-veil-diamonds);
+}
+.pagewise-active[data-pagewise-pattern="leaves"],
+.pagewise-swatch[data-pagewise-pattern="leaves"] {
+  --pagewise-tile: var(--pagewise-bg-leaves);
+  --pagewise-veil: var(--pagewise-veil-leaves);
+}
+.pagewise-active[data-pagewise-pattern="stitches"],
+.pagewise-swatch[data-pagewise-pattern="stitches"] {
+  --pagewise-tile: var(--pagewise-bg-stitches);
+  --pagewise-veil: var(--pagewise-veil-stitches);
+}
+.pagewise-active[data-pagewise-pattern="suns"],
+.pagewise-swatch[data-pagewise-pattern="suns"] {
+  --pagewise-tile: var(--pagewise-bg-suns);
+  --pagewise-veil: var(--pagewise-veil-suns);
+}
+.pagewise-active[data-pagewise-pattern="grid"],
+.pagewise-swatch[data-pagewise-pattern="grid"] {
+  --pagewise-tile: var(--pagewise-bg-grid);
+  --pagewise-veil: var(--pagewise-veil-grid);
+}
+.pagewise-active[data-pagewise-pattern="rain"],
+.pagewise-swatch[data-pagewise-pattern="rain"] {
+  --pagewise-tile: var(--pagewise-bg-rain);
+  --pagewise-veil: var(--pagewise-veil-rain);
+}
+.pagewise-active[data-pagewise-pattern="squares"],
+.pagewise-swatch[data-pagewise-pattern="squares"] {
+  --pagewise-tile: var(--pagewise-bg-squares);
+  --pagewise-veil: var(--pagewise-veil-squares);
+}
+.pagewise-active[data-pagewise-pattern="polka"],
+.pagewise-swatch[data-pagewise-pattern="polka"] {
+  --pagewise-tile: var(--pagewise-bg-polka);
+  --pagewise-veil: var(--pagewise-veil-polka);
+}
+.pagewise-active[data-pagewise-pattern="basket"],
+.pagewise-swatch[data-pagewise-pattern="basket"] {
+  --pagewise-tile: var(--pagewise-bg-basket);
+  --pagewise-veil: var(--pagewise-veil-basket);
+}
+.pagewise-active[data-pagewise-pattern="pebbles"],
+.pagewise-swatch[data-pagewise-pattern="pebbles"] {
+  --pagewise-tile: var(--pagewise-bg-pebbles);
+  --pagewise-veil: var(--pagewise-veil-pebbles);
+}
+.pagewise-active[data-pagewise-pattern="confetti"],
+.pagewise-swatch[data-pagewise-pattern="confetti"] {
+  --pagewise-tile: var(--pagewise-bg-confetti);
+  --pagewise-veil: var(--pagewise-veil-confetti);
+}
+.pagewise-active[data-pagewise-pattern="petals"],
+.pagewise-swatch[data-pagewise-pattern="petals"] {
+  --pagewise-tile: var(--pagewise-bg-petals);
+  --pagewise-veil: var(--pagewise-veil-petals);
+}
+.pagewise-active[data-pagewise-pattern="paws"],
+.pagewise-swatch[data-pagewise-pattern="paws"] {
+  --pagewise-tile: var(--pagewise-bg-paws);
+  --pagewise-veil: var(--pagewise-veil-paws);
+}
+
+/* The veil is the canvas colour itself, so the sheet keeps the contrast it has on
+ * the plain canvas. Tiles are stored 800px wide and drawn at 400px, sharp on 2x
+ * screens. The pattern is fixed to the window: the paper scrolls over it, and the
+ * gaps between sheets in reading view show the same pattern, aligned. */
+.pagewise-active[data-pagewise-pattern] .markdown-preview-view,
+.pagewise-active[data-pagewise-pattern] .markdown-source-view.mod-cm6 > .cm-editor > .cm-scroller,
+.pagewise-active[data-pagewise-pattern] .pagewise-break::after,
+.pagewise-swatch[data-pagewise-pattern] {
+  --pagewise-veil-color: color-mix(in srgb, var(--pagewise-ground) var(--pagewise-veil, 100%), transparent);
+  background-image:
+    linear-gradient(var(--pagewise-veil-color), var(--pagewise-veil-color)),
+    var(--pagewise-tile);
+  background-size: auto, 400px auto;
+  background-repeat: repeat;
+}
+
+.pagewise-active[data-pagewise-pattern] .markdown-preview-view,
+.pagewise-active[data-pagewise-pattern] .markdown-source-view.mod-cm6 > .cm-editor > .cm-scroller,
+.pagewise-active[data-pagewise-pattern] .pagewise-break::after {
+  background-attachment: fixed;
+}
+
+/* A patterned gap cannot borrow solid shadows to cover the sheet's edges, so it
+ * widens by the same 7px and draws the closing and opening hairlines as layers
+ * across the sheet's own width. */
+.pagewise-active[data-pagewise-pattern] .pagewise-break::after {
+  left: calc(var(--pagewise-margin) * -1 - 7px);
+  right: calc(var(--pagewise-margin) * -1 - 7px);
+  box-shadow: none;
+  background-image:
+    linear-gradient(var(--pagewise-edge), var(--pagewise-edge)),
+    linear-gradient(var(--pagewise-edge), var(--pagewise-edge)),
+    linear-gradient(var(--pagewise-veil-color), var(--pagewise-veil-color)),
+    var(--pagewise-tile);
+  background-size: calc(100% - 14px) 1px, calc(100% - 14px) 1px, auto, 400px auto;
+  background-position: 7px 0, 7px 100%, 0 0, 0 0;
+  background-repeat: no-repeat, no-repeat, repeat, repeat;
+  background-attachment: scroll, scroll, fixed, fixed;
+}
+
+/* ---------- Background palette ----------
+ * A panel under the toolbar's Background button, on the theme's menu surface. */
+
+.pagewise-toolbar {
+  position: relative;
+}
+
+.pagewise-palette {
+  position: absolute;
+  top: calc(100% + var(--size-2-2));
+  inset-inline-end: var(--size-4-2);
+  z-index: var(--layer-popover, 30);
+  max-width: calc(100% - var(--size-4-4));
+  max-height: 70vh;
+  overflow-y: auto;
+  padding: var(--size-4-3);
+  background-color: var(--background-primary);
+  border: var(--border-width, 1px) solid var(--background-modifier-border);
+  border-radius: var(--radius-m);
+  box-shadow: var(--shadow-s);
+}
+
+.pagewise-palette .pagewise-swatches {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 80px);
+  width: calc(80px * 4 + var(--size-4-2) * 3);
+  max-width: 100%;
+  gap: var(--size-4-3) var(--size-4-2);
+}
+
+.pagewise-palette button.pagewise-swatch-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--size-2-2);
+  height: auto;
+  margin: 0;
+  padding: 2px;
+  background: none;
+  border: none;
+  box-shadow: none;
+  border-radius: var(--radius-s);
+  cursor: var(--cursor);
+}
+
+.pagewise-swatch {
+  width: 72px;
+  height: 48px;
+  border-radius: var(--radius-s);
+  border: var(--border-width, 1px) solid var(--background-modifier-border);
+  background-color: var(--pagewise-ground);
+  background-position: center;
+}
+
+/* Swatches draw tiles at 160px, so a small face still shows the repeat. */
+.pagewise-swatch[data-pagewise-pattern] {
+  background-size: auto, 160px auto;
+}
+
+.pagewise-palette .pagewise-swatch-item:hover .pagewise-swatch {
+  border-color: var(--background-modifier-border-hover);
+}
+
+.pagewise-palette .pagewise-swatch-item[aria-checked="true"] .pagewise-swatch {
+  border: 2px solid var(--interactive-accent);
+}
+
+.pagewise-palette .pagewise-swatch-item:focus-visible {
+  box-shadow: 0 0 0 2px var(--background-modifier-border-focus);
+}
+
+.pagewise-swatch-label {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+}
+
+.pagewise-palette .pagewise-swatch-item[aria-checked="true"] .pagewise-swatch-label {
+  color: var(--text-normal);
+  font-weight: var(--font-semibold);
+}

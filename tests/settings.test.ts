@@ -22,3 +22,9 @@ test("keeps the legacy toolbarDirection value so a rollback to 0.24 finds it", (
   const stored = { ...DEFAULT_SETTINGS, toolbarDirection: "vertical" };
   assert.equal(normalizeSettings(stored).toolbarDirection, "vertical");
 });
+
+test("keeps a known background and falls back to plain for anything else", () => {
+  assert.equal(normalizeSettings({ background: "leaves" }).background, "leaves");
+  assert.equal(normalizeSettings({ background: "velvet" }).background, "plain");
+  assert.equal(normalizeSettings({}).background, "plain");
+});

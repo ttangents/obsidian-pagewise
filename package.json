@@ -1,11 +1,12 @@
 {
   "name": "pagewise",
-  "version": "0.25.0",
+  "version": "0.26.0",
   "description": "Toggle a note between the default view and a paginated, word-processor style page layout that honors the active theme.",
   "main": "main.js",
   "scripts": {
     "build": "tsc -noEmit -skipLibCheck && npm test && node esbuild.config.mjs production",
-    "test": "node scripts/test.mjs"
+    "css": "node scripts/build-css.mjs",
+    "test": "node scripts/build-css.mjs && node scripts/test.mjs"
   },
   "author": "ttangents",
   "license": "MIT",

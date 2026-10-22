@@ -483,6 +483,26 @@ function createHeader(doc) {
   return header;
 }
 
+// src/appearance/backgrounds.ts
+var BACKGROUNDS = [
+  { id: "plain", label: "Plain" },
+  { id: "diamonds", label: "Diamonds" },
+  { id: "leaves", label: "Leaves" },
+  { id: "stitches", label: "Stitches" },
+  { id: "suns", label: "Suns" },
+  { id: "grid", label: "Grid" },
+  { id: "rain", label: "Rain" },
+  { id: "squares", label: "Squares" },
+  { id: "polka", label: "Polka" },
+  { id: "basket", label: "Basket" },
+  { id: "pebbles", label: "Pebbles" },
+  { id: "confetti", label: "Confetti" },
+  { id: "petals", label: "Petals" },
+  { id: "paws", label: "Paws" }
+];
+var BACKGROUND_IDS = BACKGROUNDS.map((background) => background.id);
+var PATTERN_ATTRIBUTE = "data-pagewise-pattern";
+
 // src/settings.ts
 var WORD_MARGIN_MM = 25.4;
 var DEFAULT_SETTINGS = {
@@ -492,7 +512,8 @@ var DEFAULT_SETTINGS = {
   marginMm: WORD_MARGIN_MM,
   gapPx: 24,
   propertiesMode: "sidebar",
-  toolbarDirection: "horizontal"
+  toolbarDirection: "horizontal",
+  background: "plain"
 };
 function normalizeSettings(raw) {
   const data = typeof raw === "object" && raw !== null ? raw : {};
@@ -506,7 +527,8 @@ function normalizeSettings(raw) {
     marginMm: number(data.marginMm, 0, 100, d.marginMm),
     gapPx: number(data.gapPx, 0, 200, d.gapPx),
     propertiesMode: oneOf(data.propertiesMode, ["sidebar", "collapse", "none"], d.propertiesMode),
-    toolbarDirection: oneOf(data.toolbarDirection, ["horizontal", "vertical"], d.toolbarDirection)
+    toolbarDirection: oneOf(data.toolbarDirection, ["horizontal", "vertical"], d.toolbarDirection),
+    background: oneOf(data.background, BACKGROUND_IDS, d.background)
   };
 }
 
@@ -722,6 +744,112 @@ function fillBlocksMenu(menu, app, editor) {
   menu.addSeparator();
   addEntry(menu, { title: "Separator", icon: [SEPARATOR_ICON], action: () => insertSeparator(editor) });
 }
+
+// src/toolbar/backgroundPalette.ts
+var BackgroundPalette = class {
+  constructor(host, toggle, choice) {
+    this.host = host;
+    this.toggle = toggle;
+    this.choice = choice;
+    this.panel = null;
+    this.items = [];
+    this.onPointerDown = (event) => {
+      const target = event.target;
+      if (!this.panel || !target) return;
+      if (this.panel.contains(target) || this.toggle.contains(target)) return;
+      this.close(false);
+    };
+    this.onKeyDown = (event) => {
+      if (event.key !== "Escape" || !this.panel) return;
+      event.preventDefault();
+      event.stopPropagation();
+      this.close(true);
+    };
+  }
+  get isOpen() {
+    return this.panel !== null;
+  }
+  open() {
+    if (this.panel) return;
+    const doc = this.host.ownerDocument;
+    const panel = doc.createElement("div");
+    panel.className = "pagewise-palette";
+    panel.setAttribute("role", "dialog");
+    panel.setAttribute("aria-label", "Background");
+    const grid = doc.createElement("div");
+    grid.className = "pagewise-swatches";
+    grid.setAttribute("role", "radiogroup");
+    grid.setAttribute("aria-label", "Background");
+    grid.addEventListener("keydown", (event) => this.onArrow(event));
+    this.items = BACKGROUNDS.map(({ id, label }) => {
+      const button = doc.createElement("button");
+      button.type = "button";
+      button.className = "pagewise-swatch-item";
+      button.setAttribute("role", "radio");
+      const face = doc.createElement("div");
+      face.className = "pagewise-swatch";
+      if (id !== "plain") face.setAttribute(PATTERN_ATTRIBUTE, id);
+      const caption = doc.createElement("div");
+      caption.className = "pagewise-swatch-label";
+      caption.textContent = label;
+      button.append(face, caption);
+      button.addEventListener("click", () => this.pick(id));
+      grid.append(button);
+      return { id, button };
+    });
+    panel.append(grid);
+    this.host.append(panel);
+    this.panel = panel;
+    this.paint();
+    this.toggle.setAttribute("aria-expanded", "true");
+    doc.addEventListener("pointerdown", this.onPointerDown, true);
+    doc.addEventListener("keydown", this.onKeyDown, true);
+    this.items.find((item) => item.id === this.choice.current())?.button.focus();
+  }
+  /** Closes the panel; `refocus` returns focus to the Background button. */
+  close(refocus) {
+    if (!this.panel) return;
+    const doc = this.host.ownerDocument;
+    doc.removeEventListener("pointerdown", this.onPointerDown, true);
+    doc.removeEventListener("keydown", this.onKeyDown, true);
+    this.panel.remove();
+    this.panel = null;
+    this.items = [];
+    this.toggle.setAttribute("aria-expanded", "false");
+    if (refocus) this.toggle.focus();
+  }
+  /** Moves the selection mark to the stored background. */
+  paint() {
+    const current = this.choice.current();
+    this.items.forEach(({ id, button }) => {
+      const on = id === current;
+      button.setAttribute("aria-checked", String(on));
+      button.tabIndex = on ? 0 : -1;
+    });
+  }
+  pick(id) {
+    if (id !== this.choice.current()) this.choice.choose(id);
+    this.paint();
+  }
+  /** Arrow keys move through the grid in reading order and choose the swatch reached. */
+  onArrow(event) {
+    const index = this.items.findIndex((item) => item.button === event.target);
+    if (index < 0) return;
+    const columns = this.columns();
+    const step = event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : event.key === "ArrowDown" ? columns : event.key === "ArrowUp" ? -columns : 0;
+    if (step === 0) return;
+    event.preventDefault();
+    const next = this.items[Math.min(this.items.length - 1, Math.max(0, index + step))];
+    this.pick(next.id);
+    next.button.focus();
+  }
+  /** Swatches in the first row, read from the layout so the grid may reflow. */
+  columns() {
+    const top = this.items[0]?.button.offsetTop;
+    const count = this.items.filter((item) => item.button.offsetTop === top).length;
+    return Math.max(1, count);
+  }
+};
 
 // src/tables/tableModel.ts
 function isTableLine(line) {
@@ -1189,7 +1317,18 @@ var PaneToolbar = class {
     this.propertiesButton.classList.add("pagewise-toolbar-properties");
     this.propertiesButton.setAttribute("aria-pressed", "false");
     (0, import_obsidian7.setIcon)(this.propertiesButton, resolveIcon(["info"]));
-    trailing.append(this.moreButton, this.propertiesButton);
+    const backgroundButton = this.button("Background", () => {
+      if (this.palette.isOpen) this.palette.close(false);
+      else this.palette.open();
+    });
+    backgroundButton.setAttribute("aria-haspopup", "dialog");
+    backgroundButton.setAttribute("aria-expanded", "false");
+    (0, import_obsidian7.setIcon)(backgroundButton, resolveIcon(["swatch-book", "palette"]));
+    this.palette = new BackgroundPalette(this.el, backgroundButton, {
+      current: () => this.actions.background(),
+      choose: (id) => this.actions.setBackground(id)
+    });
+    trailing.append(this.moreButton, backgroundButton, this.propertiesButton);
     this.attach();
     this.setTabStop(this.placed[0]?.button ?? this.propertiesButton);
     const Observer = doc.defaultView?.ResizeObserver ?? ResizeObserver;
@@ -1206,9 +1345,11 @@ var PaneToolbar = class {
   }
   refreshState() {
     this.propertiesButton.setAttribute("aria-pressed", String(this.actions.propertiesShown(this.view)));
+    this.palette.paint();
   }
   destroy() {
     this.observer.disconnect();
+    this.palette.close(false);
     this.openMenu?.menu.hide();
     this.el.remove();
     this.view.containerEl.classList.remove(HOST_CLASS);
@@ -1368,11 +1509,15 @@ var PaneToolbar = class {
   }
   // ---------- Keyboard: one tab stop, arrow keys move between visible controls ----------
   visibleButtons() {
-    return Array.from(this.el.querySelectorAll("button")).filter((button) => button.offsetParent !== null);
+    return this.toolbarButtons().filter((button) => button.offsetParent !== null);
+  }
+  /** The bar's own controls; the palette's swatches keep their own keyboard model. */
+  toolbarButtons() {
+    return Array.from(this.el.querySelectorAll(".pagewise-toolbar-button"));
   }
   setTabStop(target) {
-    if (!(target instanceof HTMLElement) || !target.matches("button")) return;
-    this.el.querySelectorAll("button").forEach((button) => button.tabIndex = button === target ? 0 : -1);
+    if (!(target instanceof HTMLElement) || !target.matches(".pagewise-toolbar-button")) return;
+    this.toolbarButtons().forEach((button) => button.tabIndex = button === target ? 0 : -1);
   }
   /** Keeps the bar reachable by Tab when its current tab stop is hidden. */
   ensureTabStop() {
@@ -1413,7 +1558,9 @@ var PagewisePlugin = class extends import_obsidian8.Plugin {
     this.propertiesSidebar = new PropertiesSidebar(this.app);
     this.toolbar = new NoteToolbar(this.app, {
       toggleProperties: (view) => this.propertiesSidebar.toggle(view.file),
-      propertiesShown: (view) => this.propertiesSidebar.isShownFor(view.file)
+      propertiesShown: (view) => this.propertiesSidebar.isShownFor(view.file),
+      background: () => this.settings.background,
+      setBackground: (id) => void this.updateSettings({ background: id })
     });
     this.addCommand({
       id: "toggle-paginated-view",
@@ -1433,6 +1580,7 @@ var PagewisePlugin = class extends import_obsidian8.Plugin {
     this.controller.dispose();
     this.toolbar.dispose();
     this.propertiesSidebar.dispose();
+    markdownViews(this.app).forEach((view) => view.containerEl.removeAttribute(PATTERN_ATTRIBUTE));
   }
   /** Routes the toggle by scope: one ephemeral pane, or the persisted every-note state. */
   async toggle() {
@@ -1482,8 +1630,17 @@ var PagewisePlugin = class extends import_obsidian8.Plugin {
   }
   /** Every paginated pane carries the document toolbar; unpaginated panes carry none. */
   syncToolbar() {
+    this.syncBackground();
     this.toolbar.sync((view) => this.controller.isPaginated(view));
     this.syncInspector();
+  }
+  /** Marks each paginated pane with the chosen pattern; plain and unpaginated panes carry none. */
+  syncBackground() {
+    const pattern = this.settings.background;
+    markdownViews(this.app).forEach((view) => {
+      if (pattern !== "plain" && this.controller.isPaginated(view)) view.containerEl.setAttribute(PATTERN_ATTRIBUTE, pattern);
+      else view.containerEl.removeAttribute(PATTERN_ATTRIBUTE);
+    });
   }
   /** Marks the Properties views showing paginated notes, and updates the toolbars' Properties state. */
   syncInspectorNow() {

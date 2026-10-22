@@ -1,9 +1,11 @@
 import { MarkdownView, setIcon, setTooltip, type App, type Menu } from "obsidian";
+import type { BackgroundId } from "../appearance/backgrounds";
 import { executeCommand } from "../obsidianInternals";
 import { markdownViews } from "../workspace";
 import { fillBlocksMenu, fillHeadingMenu } from "./formatMenus";
 import { registerCustomIcons, resolveIcon, type IconChoice } from "./icons";
 import { HEADING_LEVELS } from "./markdownActions";
+import { BackgroundPalette } from "./backgroundPalette";
 import { addEntry, createMenu, whenHidden } from "./menus";
 import { fillTableMenu } from "./tableMenu";
 
@@ -18,6 +20,9 @@ export interface ToolbarActions {
   toggleProperties(view: MarkdownView): Promise<void>;
   /** True while a visible Properties view shows the pane's note. */
   propertiesShown(view: MarkdownView): boolean;
+  /** The canvas background, shared by every paginated pane. */
+  background(): BackgroundId;
+  setBackground(id: BackgroundId): void;
 }
 
 /**
@@ -89,6 +94,7 @@ class PaneToolbar {
   private readonly groupsEl: HTMLElement;
   private readonly moreButton: HTMLElement;
   private readonly propertiesButton: HTMLElement;
+  private readonly palette: BackgroundPalette;
   private readonly placed: Placed[] = [];
   private readonly observer: ResizeObserver;
   /** The menu this bar has open, if any, and the button it belongs to. */
@@ -130,7 +136,18 @@ class PaneToolbar {
     this.propertiesButton.classList.add("pagewise-toolbar-properties");
     this.propertiesButton.setAttribute("aria-pressed", "false");
     setIcon(this.propertiesButton, resolveIcon(["info"]));
-    trailing.append(this.moreButton, this.propertiesButton);
+    const backgroundButton = this.button("Background", () => {
+      if (this.palette.isOpen) this.palette.close(false);
+      else this.palette.open();
+    });
+    backgroundButton.setAttribute("aria-haspopup", "dialog");
+    backgroundButton.setAttribute("aria-expanded", "false");
+    setIcon(backgroundButton, resolveIcon(["swatch-book", "palette"]));
+    this.palette = new BackgroundPalette(this.el, backgroundButton, {
+      current: () => this.actions.background(),
+      choose: (id) => this.actions.setBackground(id),
+    });
+    trailing.append(this.moreButton, backgroundButton, this.propertiesButton);
 
     this.attach();
     this.setTabStop(this.placed[0]?.button ?? this.propertiesButton);
@@ -152,10 +169,12 @@ class PaneToolbar {
 
   refreshState(): void {
     this.propertiesButton.setAttribute("aria-pressed", String(this.actions.propertiesShown(this.view)));
+    this.palette.paint();
   }
 
   destroy(): void {
     this.observer.disconnect();
+    this.palette.close(false);
     this.openMenu?.menu.hide();
     this.el.remove();
     this.view.containerEl.classList.remove(HOST_CLASS);
@@ -334,12 +353,17 @@ class PaneToolbar {
   // ---------- Keyboard: one tab stop, arrow keys move between visible controls ----------
 
   private visibleButtons(): HTMLElement[] {
-    return Array.from(this.el.querySelectorAll<HTMLElement>("button")).filter((button) => button.offsetParent !== null);
+    return this.toolbarButtons().filter((button) => button.offsetParent !== null);
+  }
+
+  /** The bar's own controls; the palette's swatches keep their own keyboard model. */
+  private toolbarButtons(): HTMLElement[] {
+    return Array.from(this.el.querySelectorAll<HTMLElement>(".pagewise-toolbar-button"));
   }
 
   private setTabStop(target: HTMLElement): void {
-    if (!(target instanceof HTMLElement) || !target.matches("button")) return;
-    this.el.querySelectorAll<HTMLElement>("button").forEach((button) => (button.tabIndex = button === target ? 0 : -1));
+    if (!(target instanceof HTMLElement) || !target.matches(".pagewise-toolbar-button")) return;
+    this.toolbarButtons().forEach((button) => (button.tabIndex = button === target ? 0 : -1));
   }
 
   /** Keeps the bar reachable by Tab when its current tab stop is hidden. */

@@ -1,3 +1,4 @@
+import { BACKGROUND_IDS, type BackgroundId } from "./appearance/backgrounds";
 import { PAGE_SIZES, type PageSizeId } from "./pagination/pageSizes";
 
 /**
@@ -28,6 +29,8 @@ export interface PagewiseSettings {
    * value survives, and an install rolled back to 0.24.x finds it unchanged.
    */
   toolbarDirection: ToolbarDirection;
+  /** The canvas around the sheets: plain, or one of the Home Cards patterns. */
+  background: BackgroundId;
 }
 
 export const DEFAULT_SETTINGS: PagewiseSettings = {
@@ -38,6 +41,7 @@ export const DEFAULT_SETTINGS: PagewiseSettings = {
   gapPx: 24,
   propertiesMode: "sidebar",
   toolbarDirection: "horizontal",
+  background: "plain",
 };
 
 /**
@@ -61,5 +65,6 @@ export function normalizeSettings(raw: unknown): PagewiseSettings {
     gapPx: number(data.gapPx, 0, 200, d.gapPx),
     propertiesMode: oneOf(data.propertiesMode, ["sidebar", "collapse", "none"], d.propertiesMode),
     toolbarDirection: oneOf(data.toolbarDirection, ["horizontal", "vertical"], d.toolbarDirection),
+    background: oneOf(data.background, BACKGROUND_IDS, d.background),
   };
 }
