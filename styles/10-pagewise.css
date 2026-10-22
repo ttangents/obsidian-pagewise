@@ -554,6 +554,20 @@
   background: var(--background-modifier-hover);
 }
 
+/* Mentions that live in the source note's properties ("related: [[...]] [[...]]") stay
+ * off the cards, as in Home Cards. Obsidian builds a property match from spans alone
+ * and gives every text excerpt its "more context" buttons, so a match without those
+ * buttons is a property match. A card whose only mentions are properties shows just
+ * its title. Unlinked mentions are always text excerpts and keep every match. */
+.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .search-result-file-match:not(:has(> .search-result-hover-button)) {
+  display: none;
+}
+
+.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .search-result:not(:has(.search-result-file-match > .search-result-hover-button)) .search-result-file-title {
+  padding-bottom: 0;
+  margin-bottom: 0;
+}
+
 /* The mention of this note: full-strength text on a soft neutral tint, so the match
  * stays identifiable inside the muted excerpt. */
 .workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .search-result-file-matched-text {
