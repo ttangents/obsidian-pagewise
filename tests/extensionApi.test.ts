@@ -69,7 +69,7 @@ test("a throwing callback yields the fallback and warns once", () => {
 
 test("a rejected promise is caught and warned about", async () => {
   const { registry, warnings } = quietRegistry();
-  registry.call("demo:hello", "onClick", () => Promise.reject(new Error("later")), undefined);
+  registry.call("demo:hello", "onClick", () => Promise.reject(new Error("later")), undefined, true);
   await new Promise((resolve) => setTimeout(resolve, 0));
   assert.equal(warnings.length, 1);
 });
@@ -88,4 +88,35 @@ test("the API is frozen, versioned, and inert after unload", () => {
   assert.doesNotThrow(remove);
   assert.equal(registry.items().length, 0);
   assert.equal(refreshes, 1);
+});
+
+test("registration never throws, even for an item whose properties throw", () => {
+  const { registry, warnings } = quietRegistry();
+  const getter = { ...action };
+  Object.defineProperty(getter, "label", {
+    get() {
+      throw new Error("no label");
+    },
+  });
+  const { proxy, revoke } = Proxy.revocable({ ...action }, {});
+  revoke();
+  assert.doesNotThrow(() => registry.register(getter)());
+  assert.doesNotThrow(() => registry.register(proxy)());
+  assert.equal(registry.items().length, 0);
+  assert.equal(warnings.length, 2);
+});
+
+test("a promise from a hook that must answer at once yields the fallback and warns", async () => {
+  const { registry, warnings } = quietRegistry();
+  assert.equal(registry.call("demo:hello", "isVisible", () => Promise.resolve(true) as unknown as boolean, false), false);
+  assert.equal(registry.call("demo:hello", "isActive", () => Promise.resolve(true) as unknown as boolean, false), false);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(warnings.length, 2);
+});
+
+test("onClick may return a promise", () => {
+  const { registry, warnings } = quietRegistry();
+  const pending = Promise.resolve();
+  assert.equal(registry.call("demo:hello", "onClick", () => pending, undefined, true), pending);
+  assert.equal(warnings.length, 0);
 });

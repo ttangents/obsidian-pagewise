@@ -16,8 +16,21 @@ export class ToolbarRegistry {
 
   constructor(private readonly warn: Warn = (message, detail) => console.warn(message, detail ?? "")) {}
 
-  /** Adds or replaces an item; returns its remover, which only ever removes this registration. */
+  /**
+   * Adds or replaces an item; returns its remover, which only ever removes this
+   * registration. Never throws: an item whose properties throw when read (a getter,
+   * a revoked Proxy) is refused like any other malformed item.
+   */
   register(input: unknown): () => void {
+    try {
+      return this.add(input);
+    } catch (error) {
+      this.warn("Pagewise: a toolbar item was not added because reading it failed.", error);
+      return noop;
+    }
+  }
+
+  private add(input: unknown): () => void {
     if (this.closed) return noop;
     const result = validateToolbarItem(input);
     if ("error" in result) {
@@ -43,13 +56,20 @@ export class ToolbarRegistry {
     return [...this.entries.values()].map((entry) => entry.item);
   }
 
-  /** Calls one of an item's callbacks; an exception or a rejected promise becomes `fallback`. */
-  call<T>(id: string, hook: string, fn: () => T, fallback: T): T {
+  /**
+   * Calls one of an item's callbacks; an exception or a rejected promise becomes
+   * `fallback`. Only `onClick` may return a promise (`async`). A promise from any
+   * other hook counts as a failure, since Pagewise needs its answer at once.
+   */
+  call<T>(id: string, hook: string, fn: () => T, fallback: T, async = false): T {
     try {
       const result = fn();
-      const pending = result as { catch?: unknown } | null;
-      if (pending && typeof pending.catch === "function") {
-        (result as Promise<unknown>).catch((error: unknown) => this.failed(id, hook, error));
+      if (isThenable(result)) {
+        result.then(undefined, (error: unknown) => this.failed(id, hook, error));
+        if (!async) {
+          this.failed(id, hook, new Error(`${hook} returned a promise; it must answer at once`));
+          return fallback;
+        }
       }
       return result;
     } catch (error) {
@@ -94,3 +114,7 @@ export function createApi(registry: ToolbarRegistry, refresh: () => void): Pagew
 }
 
 function noop(): void {}
+
+function isThenable(value: unknown): value is PromiseLike<unknown> {
+  return typeof value === "object" && value !== null && typeof (value as { then?: unknown }).then === "function";
+}

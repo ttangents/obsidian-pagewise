@@ -351,7 +351,7 @@ class PaneToolbar {
       label: item.label,
       icon: [item.icon, FALLBACK_ICON],
       overflowRank,
-      run: onClick && (() => void registry.call(item.id, "onClick", () => onClick(context()), undefined)),
+      run: onClick && (() => void registry.call(item.id, "onClick", () => onClick(context()), undefined, true)),
       fill: menu && ((target) => registry.call(item.id, "menu", () => menu(target, context()), undefined)),
       isAvailable: () =>
         (item.readingView || context().mode === "source") &&
