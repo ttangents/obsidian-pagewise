@@ -28,7 +28,9 @@ export interface LayoutPlan {
  * shift that earlier spacers introduce; a block that would overflow the current
  * page gets a spacer that fills the rest of the page plus the inter-page break.
  * A block taller than a full page never breaks before itself when it already
- * starts a page (canBreak), so oversized blocks degrade gracefully.
+ * starts a page (canBreak), so oversized blocks degrade gracefully: it runs on
+ * across page boundaries with no gap, and the block after it is placed on the
+ * page where the oversized block ends, so no spacer is ever negative.
  */
 export function planLayout({ blocks, contentHeight, breakHeight }: LayoutInput): LayoutPlan {
   const breaksBefore = new Array<number>(blocks.length).fill(0);
@@ -37,6 +39,11 @@ export function planLayout({ blocks, contentHeight, breakHeight }: LayoutInput):
   let lastBottom = 0;
   blocks.forEach((block, index) => {
     const top = block.top + shift;
+    // After an oversized block the flow has run past the page end with no break;
+    // count the pages it filled, so the offset is measured on the page it ends on.
+    if (top - pageStart >= contentHeight && contentHeight > 0) {
+      pageStart += Math.floor((top - pageStart) / contentHeight) * contentHeight;
+    }
     const offsetOnPage = top - pageStart;
     const overflows = offsetOnPage + block.height > contentHeight;
     const canBreak = offsetOnPage > 0;
@@ -57,4 +64,37 @@ export function planLayout({ blocks, contentHeight, breakHeight }: LayoutInput):
       ? Math.max(0, contentHeight - (usedOnLastPage % contentHeight || contentHeight))
       : contentHeight;
   return { breaksBefore, tailPadding };
+}
+
+/** One direct child of the preview sizer as the paginator measured it. */
+export interface MeasuredChild {
+  top: number;
+  height: number;
+  /** Reading view's placeholder for sections it has not rendered (`.markdown-preview-pusher`). */
+  placeholder: boolean;
+}
+
+/**
+ * Picks the children a layout plan covers. Placeholders and children with no
+ * height take no part: a page break before them would mean nothing. Reading view
+ * renders a long note lazily and stands a placeholder in for the sections above
+ * the rendered window, so positions are measured from the bottom of a leading
+ * placeholder: the rendered window is laid out as if it started a page.
+ *
+ * @returns the indexes of the chosen children, and their geometry relative to the origin
+ */
+export function layoutBlocks(children: readonly MeasuredChild[], contentTop: number): { indexes: number[]; blocks: BlockGeometry[] } {
+  let origin = contentTop;
+  const indexes: number[] = [];
+  const blocks: BlockGeometry[] = [];
+  children.forEach((child, index) => {
+    if (child.placeholder) {
+      if (indexes.length === 0) origin = Math.max(origin, child.top + child.height);
+      return;
+    }
+    if (child.height <= 0) return;
+    indexes.push(index);
+    blocks.push({ top: child.top - origin, height: child.height });
+  });
+  return { indexes, blocks };
 }
