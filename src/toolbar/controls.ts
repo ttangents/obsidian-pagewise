@@ -25,12 +25,32 @@ export interface EditingControl {
   menu?: ControlMenu;
 }
 
+/**
+ * Back or forward through the pane's history, the first controls on the bar. They
+ * run Obsidian's own navigation commands and show in every view mode; while they
+ * show, the stylesheet hides the same buttons in Obsidian's tab title bar (D24).
+ */
+export interface NavigationControl {
+  id: "back" | "forward";
+  label: string;
+  icon: IconChoice;
+  /** The Obsidian command the button runs. */
+  command: "app:go-back" | "app:go-forward";
+  /** Navigation leaves for More last. */
+  overflowRank: number;
+}
+
 /** A control at the trailing end of the bar, which never moves into More. */
 export interface TrailingControl {
   id: "background" | "properties";
   label: string;
   icon: IconChoice;
 }
+
+export const NAVIGATION_CONTROLS: readonly NavigationControl[] = [
+  { id: "back", label: "Back", icon: ["arrow-left"], command: "app:go-back", overflowRank: 20 },
+  { id: "forward", label: "Forward", icon: ["arrow-right"], command: "app:go-forward", overflowRank: 19 },
+];
 
 export const EDITING_CONTROLS: readonly EditingControl[] = [
   { id: "headings", label: "Headings", icon: ["heading"], group: 0, overflowRank: 6, menu: "headings" },
@@ -50,7 +70,7 @@ export const TRAILING_CONTROLS: readonly TrailingControl[] = [
 ];
 
 /** Every built-in control the user can hide, in toolbar order, for the settings tab. */
-export const BUILT_IN_CONTROLS: readonly { id: string; label: string }[] = [...EDITING_CONTROLS, ...TRAILING_CONTROLS].map(
+export const BUILT_IN_CONTROLS: readonly { id: string; label: string }[] = [...NAVIGATION_CONTROLS, ...EDITING_CONTROLS, ...TRAILING_CONTROLS].map(
   ({ id, label }) => ({ id, label })
 );
 

@@ -1,6 +1,6 @@
 # Pagewise
 
-Pagewise shows an Obsidian note as paginated sheets, like a word processor. Reading view gets page breaks and page numbers; Live Preview and Source mode get the same sheet styling without page breaks. Pagewise also adds a document toolbar with formatting and table menus, collapsible in-note Properties with an on-demand Properties sidebar, cleaner linked-mention cards, and patterned canvas backgrounds.
+Pagewise shows an Obsidian note as paginated sheets, like a word processor. Reading view gets page breaks and page numbers; Live Preview and Source mode get the same sheet styling without page breaks. Pagewise also adds a document toolbar with Back and Forward, formatting and table menus, collapsible in-note Properties with an on-demand Properties sidebar, cleaner linked-mention cards, and patterned canvas backgrounds.
 
 Pagewise works with every theme. It writes plain Markdown only and never puts HTML or CSS into notes. Turning it off removes every change it made to the page. PDF export and printing stay with Obsidian.
 
@@ -8,7 +8,7 @@ Pagewise works with every theme. It writes plain Markdown only and never puts HT
 
 - Run "Toggle paginated view for this note" from the command palette, or click the book icon in the ribbon.
 - In settings, choose whether pagination applies to one note at a time or to all notes, the page size, margins, the gap between sheets, and what happens to Properties.
-- The toolbar shows on paginated notes, or on all notes if you choose. Add any command from the command palette as a toolbar button, and hide any built-in control.
+- The toolbar shows on paginated notes, or on all notes if you choose. It starts with Back and Forward, which replace the pair in Obsidian's tab title bar on that pane, then the formatting controls, then the buttons you or other plugins added, each section set apart by a thin divider. Add any command from the command palette as a toolbar button, and hide any built-in control.
 
 ## Privacy
 

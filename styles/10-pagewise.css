@@ -200,14 +200,36 @@
   border-bottom: 1px solid var(--pagewise-hairline, var(--background-modifier-border));
 }
 
-/* Groups are told apart by space alone; controls inside a group sit close. */
-.pagewise-toolbar-groups {
+/* Sections (Back and Forward, formatting, what the user or other plugins added) are
+ * set apart by a thin divider; groups within a section by space alone; controls
+ * inside a group sit close. */
+.pagewise-toolbar-groups,
+.pagewise-toolbar-section {
   display: flex;
   align-items: center;
-  gap: var(--size-4-4);
-  flex: 1 1 0;
+  gap: var(--size-4-3);
   min-width: 0;
+}
+
+.pagewise-toolbar-groups {
+  flex: 1 1 0;
   overflow: hidden;
+}
+
+.pagewise-toolbar-section {
+  flex: none;
+}
+
+/* A divider before every showing section that follows another showing one, so an
+ * empty section (Reading view's formatting, say) never leaves a doubled line. */
+.pagewise-toolbar-section:not(.is-empty) ~ .pagewise-toolbar-section:not(.is-empty)::before {
+  content: "";
+  flex: none;
+  align-self: center;
+  width: var(--divider-width, 1px);
+  height: 16px;
+  border-radius: 1px;
+  background-color: var(--divider-color, var(--background-modifier-border));
 }
 
 .pagewise-toolbar-group,
@@ -221,7 +243,14 @@
 /* Controls the pane is too narrow for live in the More menu instead. */
 .pagewise-toolbar .pagewise-toolbar-button.is-overflowed,
 .pagewise-toolbar .pagewise-toolbar-group.is-empty,
+.pagewise-toolbar .pagewise-toolbar-section.is-empty,
 .pagewise-toolbar .pagewise-toolbar-button.is-unavailable {
+  display: none;
+}
+
+/* Back and Forward move into the bar; Obsidian's own pair in the tab title bar gives
+ * way while they show, so a pane never has two (D24). */
+.workspace-leaf-content.pagewise-has-navigation > .view-header .view-header-nav-buttons {
   display: none;
 }
 
@@ -269,6 +298,14 @@
 .pagewise-toolbar .pagewise-toolbar-button:hover {
   color: var(--text-normal);
   background-color: var(--background-modifier-hover);
+}
+
+/* Back with no history to go back to, and Forward likewise, dim as Obsidian's do. */
+.pagewise-toolbar .pagewise-toolbar-button.is-disabled {
+  color: var(--text-faint);
+  opacity: 0.6;
+  background: none;
+  cursor: default;
 }
 
 /* An open menu and a showing Properties view both read as "on". */

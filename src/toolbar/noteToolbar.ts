@@ -1,16 +1,16 @@
 import { MarkdownView, Menu as ObsidianMenu, setIcon, setTooltip, type App, type Editor, type Menu } from "obsidian";
 import type { BackgroundId } from "../appearance/backgrounds";
-import { menuIsEmpty } from "../obsidianInternals";
+import { menuIsEmpty, navigationDepth } from "../obsidianInternals";
 import type { CommandButton } from "../settings";
 import { markdownViews } from "../workspace";
 import { DOM } from "../obsidianDom";
-import { editingGroups, TRAILING_CONTROLS, type ControlMenu } from "./controls";
+import { editingGroups, NAVIGATION_CONTROLS, TRAILING_CONTROLS, type ControlMenu } from "./controls";
 import { fillBlocksMenu, fillHeadingMenu } from "./formatMenus";
 import { registerCustomIcons, resolveIcon, type IconChoice } from "./icons";
 import { HEADING_LEVELS } from "./markdownActions";
 import { BackgroundPalette } from "./backgroundPalette";
 import { addEntry, createMenu, whenHidden, type CommandRunner } from "./menus";
-import { fitToWidth, OVERFLOWED_CLASS, UNAVAILABLE_CLASS } from "./overflow";
+import { DISABLED_CLASS, fitToWidth, OVERFLOWED_CLASS, UNAVAILABLE_CLASS } from "./overflow";
 import { RovingTabStop } from "./rovingFocus";
 import { fillTableMenu } from "./tableMenu";
 import type { PagewiseToolbarContext, PagewiseToolbarItem } from "./extensionApi";
@@ -18,6 +18,8 @@ import type { ToolbarRegistry } from "./extensionRegistry";
 
 const TOOLBAR_CLASS = "pagewise-toolbar";
 const HOST_CLASS = "pagewise-has-toolbar";
+/** On a pane whose bar shows Back or Forward; the stylesheet then hides Obsidian's own pair. */
+const NAVIGATION_HOST_CLASS = "pagewise-has-navigation";
 const BUTTON_CLASS = "pagewise-toolbar-button";
 
 /** What the toolbar asks of its owner: commands (the only way it runs one), Properties, and the background. */
@@ -66,6 +68,8 @@ interface Control {
   fill?: (menu: Menu) => void;
   /** False hides the control on this pane for now; read on every refresh. */
   isAvailable?: () => boolean;
+  /** False shows the control dimmed and makes it do nothing, as Back does with no history. */
+  isEnabled?: () => boolean;
   /** Makes the control a toggle; true shows it pressed. */
   isActive?: () => boolean;
   /** A label that can change after the toolbar is built (a command's name). */
@@ -73,7 +77,19 @@ interface Control {
 }
 
 /** Built-in formatting groups need an editor, so Reading view hides them. */
-type GroupKind = "editing" | "commands" | "extensions";
+type GroupKind = "navigation" | "editing" | "commands" | "extensions";
+
+/**
+ * The bar's sections, left to right, which a thin divider sets apart: moving through
+ * history, formatting the note, and what the user or other plugins added. Groups
+ * within a section are set apart by space alone.
+ */
+const SECTION_OF: Record<GroupKind, string> = {
+  navigation: "navigation",
+  editing: "formatting",
+  commands: "added",
+  extensions: "added",
+};
 
 interface Placed {
   control: Control;
@@ -163,6 +179,8 @@ class PaneToolbar {
   private openMenu: { menu: Menu; button: HTMLElement } | null = null;
   /** Whether the More menu was opened from the keyboard; menus it opens inherit that. */
   private moreKeyboard = false;
+  /** Whether the bar shows Back or Forward, so Obsidian's own pair can give way. */
+  private readonly showsNavigation: boolean;
 
   constructor(
     private readonly app: App,
@@ -184,10 +202,17 @@ class PaneToolbar {
     this.el.addEventListener("contextmenu", (event) => this.showCustomizeMenu(event));
 
     this.groupsEl = this.el.createDiv({ cls: "pagewise-toolbar-groups" });
+    const sections = new Map<string, HTMLElement>();
     this.controlGroups().forEach(({ kind, controls }) => {
       const visible = controls.filter((control) => !config.hidden.has(control.id));
       if (visible.length === 0) return;
-      const group = this.groupsEl.createDiv({ cls: `pagewise-toolbar-group is-${kind}` });
+      const name = SECTION_OF[kind];
+      let section = sections.get(name);
+      if (!section) {
+        section = this.groupsEl.createDiv({ cls: `pagewise-toolbar-section is-${name}` });
+        sections.set(name, section);
+      }
+      const group = section.createDiv({ cls: `pagewise-toolbar-group is-${kind}` });
       visible.forEach((control) => {
         const button = control.fill
           ? this.menuButton(control.label, control.icon, control.fill)
@@ -197,6 +222,7 @@ class PaneToolbar {
         this.placed.push({ control, button, group });
       });
     });
+    this.showsNavigation = sections.has("navigation");
 
     const trailing = this.el.createDiv({ cls: "pagewise-toolbar-trailing" });
     this.moreButton = this.menuButton("More tools", ["ellipsis", "more-horizontal"], (menu) => this.fillMore(menu), false);
@@ -239,6 +265,7 @@ class PaneToolbar {
   attach(): void {
     const container = this.view.containerEl;
     container.classList.add(HOST_CLASS);
+    container.classList.toggle(NAVIGATION_HOST_CLASS, this.showsNavigation);
     if (this.el.parentElement !== container || this.el.nextElementSibling !== this.view.contentEl) {
       this.view.contentEl.before(this.el);
     }
@@ -255,6 +282,11 @@ class PaneToolbar {
   private updateControls(): void {
     this.placed.forEach(({ control, button }) => {
       button.classList.toggle(UNAVAILABLE_CLASS, control.isAvailable ? !control.isAvailable() : false);
+      if (control.isEnabled) {
+        const enabled = control.isEnabled();
+        button.classList.toggle(DISABLED_CLASS, !enabled);
+        button.setAttribute("aria-disabled", String(!enabled));
+      }
       if (control.isActive) button.setAttribute("aria-pressed", String(control.isActive()));
       const label = control.currentLabel?.();
       if (label && button.getAttribute("aria-label") !== label) {
@@ -275,13 +307,14 @@ class PaneToolbar {
     this.palette.close(false);
     this.openMenu?.menu.hide();
     this.el.remove();
-    this.view.containerEl.classList.remove(HOST_CLASS);
+    this.view.containerEl.classList.remove(HOST_CLASS, NAVIGATION_HOST_CLASS);
   }
 
   /**
-   * The controls, grouped by purpose: block formats, inline formats and insertions
-   * (built in), then the user's command buttons, then items other plugins added.
-   * The added groups leave for More first, right to left, then the built-in ranks.
+   * The controls, grouped by purpose: Back and Forward, then block formats, inline
+   * formats and insertions (built in), then the user's command buttons, then items
+   * other plugins added. The added groups leave for More first, right to left, then
+   * the built-in ranks; Back and Forward leave last.
    */
   private controlGroups(): { kind: GroupKind; controls: Control[] }[] {
     const { actions, view } = this;
@@ -298,7 +331,22 @@ class PaneToolbar {
         fill: menu === undefined ? undefined : (target: Menu) => MENUS[menu](target, actions, view.editor),
       })),
     }));
+    const navigation = {
+      kind: "navigation" as const,
+      controls: NAVIGATION_CONTROLS.map(({ id, label, icon, overflowRank, command }): Control => ({
+        id,
+        label,
+        icon,
+        overflowRank,
+        run: () => actions.runCommand(command),
+        isEnabled: () => {
+          const depth = navigationDepth(view.leaf);
+          return depth === null || (id === "back" ? depth.back : depth.forward) > 0;
+        },
+      })),
+    };
     return [
+      navigation,
       ...editing,
       {
         kind: "commands",
@@ -384,6 +432,7 @@ class PaneToolbar {
           };
       const entry = addEntry(menu, { title: control.currentLabel?.() ?? control.label, icon: control.icon, action });
       if (control.isActive) entry.setChecked(control.isActive());
+      if (button.classList.contains(DISABLED_CLASS)) entry.setDisabled(true);
     });
   }
 
@@ -480,7 +529,10 @@ class PaneToolbar {
   }
 
   private commandButton(label: string, icon: IconChoice, run: () => void): HTMLElement {
-    const button = this.button(label, (keyboard) => this.runCommand(run, keyboard));
+    const button = this.button(label, (keyboard) => {
+      // A dimmed control, such as Back with no history, does nothing.
+      if (!button.classList.contains(DISABLED_CLASS)) this.runCommand(run, keyboard);
+    });
     setIcon(button, resolveIcon(icon));
     return button;
   }

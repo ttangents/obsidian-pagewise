@@ -1,4 +1,4 @@
-import type { App, MarkdownView, Menu, MenuItem } from "obsidian";
+import type { App, MarkdownView, Menu, MenuItem, WorkspaceLeaf } from "obsidian";
 
 /**
  * Every undocumented Obsidian method and field Pagewise touches, in one place; the
@@ -13,6 +13,7 @@ import type { App, MarkdownView, Menu, MenuItem } from "obsidian";
  * - app.commands.listCommands / findCommand: the command palette's commands (command buttons).
  * - app.setting.open / openTabById: open Pagewise's settings ("Customize toolbar…").
  * - Menu.items: whether a filled menu has anything to show.
+ * - WorkspaceLeaf.history.backHistory / forwardHistory: whether Back and Forward can move.
  */
 
 /** A command as the command palette lists it. */
@@ -88,6 +89,17 @@ export function openSettingTab(app: App, pluginId: string): boolean {
   setting.open();
   setting.openTabById(pluginId);
   return true;
+}
+
+/**
+ * How far a pane can move back and forward through its history, as Obsidian's own
+ * tab title bar reads it. Null when Obsidian hides the history, so the toolbar's
+ * Back and Forward stay enabled and Obsidian's command decides.
+ */
+export function navigationDepth(leaf: WorkspaceLeaf): { back: number; forward: number } | null {
+  const history = (leaf as unknown as { history?: { backHistory?: unknown; forwardHistory?: unknown } }).history;
+  if (!Array.isArray(history?.backHistory) || !Array.isArray(history.forwardHistory)) return null;
+  return { back: history.backHistory.length, forward: history.forwardHistory.length };
 }
 
 /** True when a filled menu has no items; false when it has some or Obsidian hides the list. */

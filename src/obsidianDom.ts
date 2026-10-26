@@ -10,7 +10,8 @@
  * `.markdown-preview-view`, `.markdown-source-view.mod-cm6 > .cm-editor > .cm-scroller > .cm-sizer`,
  * `.cm-contentContainer`, `.cm-content`, `.metadata-properties-heading`,
  * `.metadata-content`, `.metadata-properties`, `.metadata-add-button`,
- * `.internal-link` (in the Markdown Obsidian renders) and the `.theme-dark` body class.
+ * `.internal-link` (in the Markdown Obsidian renders), `.view-header .view-header-nav-buttons`
+ * (the tab title bar's Back and Forward) and the `.theme-dark` body class.
  */
 export const DOM = {
   /** Reading view's sheet: the direct parent of the rendered sections (pagination). */
