@@ -510,15 +510,15 @@
 /* ---------- Callouts as cards (D25) ----------
  * In a paginated pane with "Pagewise cards" chosen, callouts sit on a card like the
  * mention cards: the shared card fill, a hairline border and rounded corners, the
- * callout's own colour on its icon and on a thin accent along the left edge, a
- * semibold title in text colour and the body in muted text. The theme still sets
+ * callout's own colour on its icon only, a semibold title in text colour and the
+ * body in muted text. The theme still sets
  * fonts and every colour, including each callout type's. Pagewise sets the shape
  * through Obsidian's callout variables and the few properties themes commonly set
  * directly, one level more specific than a typical theme rule. */
 .workspace-leaf-content[data-type="markdown"].pagewise-callout-cards :is(.markdown-preview-view, .markdown-source-view) .callout {
   --callout-radius: var(--pagewise-radius-card);
   --callout-border-width: 1px;
-  --callout-padding: 12px 16px 13px 18px;
+  --callout-padding: 12px 16px 13px;
   --callout-blend-mode: normal;
   --callout-title-color: var(--text-normal);
   --callout-title-size: inherit;
@@ -531,7 +531,7 @@
   border: 1px solid var(--pagewise-hairline);
   border-radius: var(--callout-radius);
   background-color: var(--pagewise-card-bg);
-  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--callout-color) 85%, transparent);
+  box-shadow: none;
   mix-blend-mode: normal;
   font-size: inherit;
   color: var(--text-muted);
@@ -588,16 +588,15 @@
   margin-bottom: 0;
 }
 
-/* A callout inside a callout, or inside a mention card, keeps only its accent line,
- * so a card never sits inside a card. */
+/* A callout inside a callout, or inside a mention card, drops its card and keeps its
+ * icon and title, so a card never sits inside a card. */
 .workspace-leaf-content[data-type="markdown"].pagewise-callout-cards :is(.markdown-preview-view, .markdown-source-view) .callout .callout,
 .workspace-leaf-content[data-type="markdown"].pagewise-callout-cards :is(.markdown-preview-view, .markdown-source-view) .pagewise-mention-passage .callout {
   margin-block: 0.75em;
-  padding: 0 0 0 14px;
+  padding: 0;
   border: 0;
   border-radius: 0;
   background-color: transparent;
-  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--callout-color) 75%, transparent);
 }
 
 .workspace-leaf-content[data-type="markdown"].pagewise-callout-cards :is(.markdown-preview-view, .markdown-source-view) .pagewise-mention-passage .callout:first-child {

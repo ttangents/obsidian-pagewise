@@ -96,7 +96,7 @@ export class PagewiseSettingTab extends PluginSettingTab {
       },
       {
         name: "Callouts in paginated view",
-        desc: "Pagewise cards: callouts sit on a card like the linked mentions, with the callout's colour on its icon and left edge; your theme still sets fonts and colours. Theme: callouts look as your theme draws them.",
+        desc: "Pagewise cards: callouts sit on a card like the linked mentions, with the callout's colour on its icon; your theme still sets fonts and colours. Theme: callouts look as your theme draws them.",
         control: { type: "dropdown", key: "calloutStyle", options: { cards: "Pagewise cards", theme: "As the theme draws them" } },
       },
       {
