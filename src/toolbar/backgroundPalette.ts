@@ -44,33 +44,17 @@ export class BackgroundPalette {
   open(): void {
     if (this.panel) return;
     const doc = this.host.ownerDocument;
-    const panel = doc.createElement("div");
-    panel.className = "pagewise-palette";
-    panel.setAttribute("role", "dialog");
-    panel.setAttribute("aria-label", "Background");
-    const grid = doc.createElement("div");
-    grid.className = "pagewise-swatches";
-    grid.setAttribute("role", "radiogroup");
-    grid.setAttribute("aria-label", "Background");
+    const panel = this.host.createDiv({ cls: "pagewise-palette", attr: { role: "dialog", "aria-label": "Background" } });
+    const grid = panel.createDiv({ cls: "pagewise-swatches", attr: { role: "radiogroup", "aria-label": "Background" } });
     grid.addEventListener("keydown", (event) => this.onArrow(event));
     this.items = BACKGROUNDS.map(({ id, label }) => {
-      const button = doc.createElement("button");
-      button.type = "button";
-      button.className = "pagewise-swatch-item";
-      button.setAttribute("role", "radio");
-      const face = doc.createElement("div");
-      face.className = "pagewise-swatch";
+      const button = grid.createEl("button", { cls: "pagewise-swatch-item", attr: { type: "button", role: "radio" } });
+      const face = button.createDiv({ cls: "pagewise-swatch" });
       if (id !== "plain") face.setAttribute(PATTERN_ATTRIBUTE, id);
-      const caption = doc.createElement("div");
-      caption.className = "pagewise-swatch-label";
-      caption.textContent = label;
-      button.append(face, caption);
+      button.createDiv({ cls: "pagewise-swatch-label", text: label });
       button.addEventListener("click", () => this.pick(id));
-      grid.append(button);
       return { id, button };
     });
-    panel.append(grid);
-    this.host.append(panel);
     this.panel = panel;
     this.paint();
     this.toggle.setAttribute("aria-expanded", "true");

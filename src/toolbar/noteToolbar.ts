@@ -173,10 +173,8 @@ class PaneToolbar {
     private readonly registry: ToolbarRegistry
   ) {
     const doc = view.containerEl.ownerDocument;
-    this.el = doc.createElement("div");
-    this.el.className = TOOLBAR_CLASS;
-    this.el.setAttribute("role", "toolbar");
-    this.el.setAttribute("aria-label", "Document toolbar");
+    // Created in the pane, then attach() moves it between the view header and the content.
+    this.el = view.containerEl.createDiv({ cls: TOOLBAR_CLASS, attr: { role: "toolbar", "aria-label": "Document toolbar" } });
     // A pointer press on the bar must not take focus or the selection from the editor.
     this.el.addEventListener("mousedown", (event) => event.preventDefault());
     this.el.addEventListener("keydown", (event) => this.onKeydown(event));
@@ -223,7 +221,8 @@ class PaneToolbar {
       ["background", backgroundButton],
       ["properties", this.propertiesButton],
     ];
-    trailing.append(this.moreButton, ...trailingControls.filter(([id]) => !config.hidden.has(id)).map(([, button]) => button));
+    trailing.append(this.moreButton);
+    trailingControls.forEach(([id, button]) => (config.hidden.has(id) ? button.detach() : trailing.append(button)));
 
     this.attach();
     this.setTabStop(this.placed[0]?.button ?? this.propertiesButton);
@@ -349,7 +348,7 @@ class PaneToolbar {
       label: item.label,
       icon: [item.icon, FALLBACK_ICON],
       overflowRank,
-      run: onClick && (() => registry.call(item.id, "onClick", () => onClick(context()), undefined)),
+      run: onClick && (() => void registry.call(item.id, "onClick", () => onClick(context()), undefined)),
       fill: menu && ((target) => registry.call(item.id, "menu", () => menu(target, context()), undefined)),
       isAvailable: () =>
         (item.readingView || context().mode === "source") &&
@@ -513,11 +512,9 @@ class PaneToolbar {
 
   /** `keyboard` is true when Enter or Space pressed the button rather than a pointer. */
   private button(label: string, onPress: (keyboard: boolean) => void): HTMLElement {
-    const button = this.el.ownerDocument.createElement("button");
-    button.className = "pagewise-toolbar-button clickable-icon";
-    button.type = "button";
+    // Created in the bar's own window; the caller moves it into its group.
+    const button = this.el.createEl("button", { cls: "pagewise-toolbar-button clickable-icon", attr: { type: "button", "aria-label": label } });
     button.tabIndex = -1;
-    button.setAttribute("aria-label", label);
     setTooltip(button, label, { placement: "bottom" });
     button.addEventListener("click", (event) => {
       event.preventDefault();
@@ -538,7 +535,7 @@ class PaneToolbar {
   }
 
   private setTabStop(target: HTMLElement): void {
-    if (!(target instanceof HTMLElement) || !target.matches(".pagewise-toolbar-button")) return;
+    if (!target.instanceOf(HTMLElement) || !target.matches(".pagewise-toolbar-button")) return;
     this.toolbarButtons().forEach((button) => (button.tabIndex = button === target ? 0 : -1));
   }
 
@@ -566,8 +563,7 @@ class PaneToolbar {
 }
 
 function iconSpan(owner: HTMLElement, className: string, icon: IconChoice): HTMLElement {
-  const span = owner.ownerDocument.createElement("span");
-  span.className = className;
+  const span = owner.createSpan({ cls: className });
   setIcon(span, resolveIcon(icon));
   return span;
 }

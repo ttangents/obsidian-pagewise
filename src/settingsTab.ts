@@ -1,11 +1,11 @@
-import { App, FuzzySuggestModal, getIcon, Plugin, PluginSettingTab, Setting, setIcon } from "obsidian";
+import { App, FuzzySuggestModal, getIcon, PluginSettingTab, setIcon, type Plugin, type Setting, type SettingDefinitionItem } from "obsidian";
 import type { PaletteCommand } from "./obsidianInternals";
-import { PAGE_SIZES, type PageSizeId } from "./pagination/pageSizes";
-import { MAX_COMMAND_BUTTONS, type CommandButton, type PagewiseSettings, type PropertiesMode, type ToggleScope, type ToolbarScope } from "./settings";
+import { PAGE_SIZES } from "./pagination/pageSizes";
+import { MAX_COMMAND_BUTTONS, normalizeSettings, type CommandButton, type PagewiseSettings } from "./settings";
 import { BUILT_IN_CONTROLS } from "./toolbar/noteToolbar";
 
 /** What the settings tab needs from its owner: current values, a way to change them, and the toolbar's catalog. */
-export interface SettingsHost extends Plugin {
+export interface SettingsHost {
   readonly settings: PagewiseSettings;
   updateSettings(patch: Partial<PagewiseSettings>): Promise<void>;
   listCommands(): PaletteCommand[];
@@ -16,145 +16,157 @@ export interface SettingsHost extends Plugin {
 /** The icon a new command button gets when its command names none. */
 const DEFAULT_COMMAND_ICON = "terminal-square";
 
+/** Settings a control binds to directly. The lists have rows of their own. */
+const SCALAR_KEYS = ["scope", "pageSize", "marginMm", "gapPx", "propertiesMode", "toolbarScope"] as const;
+type ScalarKey = (typeof SCALAR_KEYS)[number];
+
+/** A toolbar control's visibility toggle binds to this virtual key; true means shown. */
+const SHOWN_PREFIX = "shown:";
+
+/**
+ * The settings tab, declared through Obsidian's settings definitions, so Obsidian
+ * draws every row in its own style and lists each setting in its settings search.
+ * Every read and write goes through `getControlValue` and `setControlValue`, and
+ * every list handler reads the current settings, never a copy taken at render time.
+ */
 export class PagewiseSettingTab extends PluginSettingTab {
   constructor(
     app: App,
-    private readonly plugin: SettingsHost
+    plugin: Plugin,
+    private readonly host: SettingsHost
   ) {
     super(app, plugin);
   }
 
-  display(): void {
-    const { containerEl } = this;
-    containerEl.empty();
-
-    new Setting(containerEl)
-      .setName("Toggle scope")
-      .setDesc(
-        "This note only: pagination applies to the focused note and resets when it is closed or replaced. All notes: pagination applies everywhere at once and survives restarts."
-      )
-      .addDropdown((dropdown) =>
-        dropdown
-          .addOption("note", "This note only (resets on close)")
-          .addOption("global", "All notes (persistent)")
-          .setValue(this.plugin.settings.scope)
-          .onChange(async (value) => {
-            await this.plugin.updateSettings({ scope: value as ToggleScope });
-          })
-      );
-
-    new Setting(containerEl)
-      .setName("Page size")
-      .setDesc("Sheet dimensions used for the paginated view.")
-      .addDropdown((dropdown) => {
-        PAGE_SIZES.forEach((size) => dropdown.addOption(size.id, size.label));
-        dropdown.setValue(this.plugin.settings.pageSize).onChange(async (value) => {
-          await this.plugin.updateSettings({ pageSize: value as PageSizeId });
-        });
-      });
-
-    new Setting(containerEl)
-      .setName("Margins (mm)")
-      .setDesc("Applied to all four sides of the on-screen sheet. 25.4 mm matches the Word default of one inch.")
-      .addSlider((slider) =>
-        slider
-          .setLimits(10, 40, 1)
-          .setDynamicTooltip()
-          .setValue(this.plugin.settings.marginMm)
-          .onChange(async (value) => {
-            await this.plugin.updateSettings({ marginMm: value });
-          })
-      );
-
-    new Setting(containerEl)
-      .setName("Properties in paginated view")
-      .setDesc(
-        "Move to sidebar: the panel leaves the page; open it on demand with the toolbar’s Properties button or Obsidian’s own Properties view. Collapse in place: the panel stays on the page, folded. Leave unchanged: no intervention. The note's frontmatter is never modified."
-      )
-      .addDropdown((dropdown) =>
-        dropdown
-          .addOption("sidebar", "Move to sidebar")
-          .addOption("collapse", "Collapse in place")
-          .addOption("none", "Leave unchanged")
-          .setValue(this.plugin.settings.propertiesMode)
-          .onChange(async (value) => {
-            await this.plugin.updateSettings({ propertiesMode: value as PropertiesMode });
-          })
-      );
-
-    new Setting(containerEl).setName("Gap between sheets (px)").addSlider((slider) =>
-      slider
-        .setLimits(0, 64, 4)
-        .setDynamicTooltip()
-        .setValue(this.plugin.settings.gapPx)
-        .onChange(async (value) => {
-          await this.plugin.updateSettings({ gapPx: value });
-        })
-    );
-
-    this.displayToolbar(containerEl);
+  getControlValue(key: string): unknown {
+    const { settings } = this.host;
+    if (key.startsWith(SHOWN_PREFIX)) return !settings.hiddenControls.includes(key.slice(SHOWN_PREFIX.length));
+    return isScalarKey(key) ? settings[key] : undefined;
   }
 
-  /** The toolbar section: where it shows, which controls it holds, and command buttons. */
-  private displayToolbar(containerEl: HTMLElement): void {
-    const { settings } = this.plugin;
-    new Setting(containerEl).setName("Toolbar").setHeading();
-
-    new Setting(containerEl)
-      .setName("Show the toolbar on")
-      .setDesc("The formatting toolbar at the top of a note.")
-      .addDropdown((dropdown) =>
-        dropdown
-          .addOption("paginated", "Paginated notes only")
-          .addOption("all", "All notes")
-          .setValue(settings.toolbarScope)
-          .onChange(async (value) => {
-            await this.plugin.updateSettings({ toolbarScope: value as ToolbarScope });
-          })
-      );
-
-    new Setting(containerEl).setName("Built-in controls").setDesc("Turn off a control to remove it from the toolbar.").setHeading();
-    BUILT_IN_CONTROLS.forEach(({ id, label }) => this.visibilityToggle(containerEl, id, label));
-
-    new Setting(containerEl)
-      .setName("Command buttons")
-      .setDesc("Add any command from the command palette as a toolbar button. Icon names come from lucide.dev.")
-      .setHeading();
-    settings.commandButtons.forEach((button, index) => this.commandButtonRow(containerEl, button, index));
-    new Setting(containerEl).addButton((button) =>
-      button
-        .setButtonText("Add command button")
-        .setDisabled(settings.commandButtons.length >= MAX_COMMAND_BUTTONS)
-        .onClick(() => new CommandPicker(this.app, this.plugin, (command) => void this.addCommandButton(command)).open())
-    );
-
-    new Setting(containerEl).setName("Added by other plugins").setHeading();
-    const extensions = this.plugin.extensionItems();
-    if (extensions.length === 0) {
-      new Setting(containerEl).setDesc("No other plugin has added a toolbar button.");
+  async setControlValue(key: string, value: unknown): Promise<void> {
+    const { settings } = this.host;
+    if (key.startsWith(SHOWN_PREFIX)) {
+      const id = key.slice(SHOWN_PREFIX.length);
+      const hidden = settings.hiddenControls.filter((other) => other !== id);
+      await this.host.updateSettings({ hiddenControls: value === false ? [...hidden, id] : hidden });
+      return;
     }
-    extensions.forEach(({ id, label }) => this.visibilityToggle(containerEl, id, label, id));
+    if (!isScalarKey(key)) return;
+    const patch: Partial<PagewiseSettings> = { [key]: value };
+    // normalizeSettings replaces a value outside the allowed set; such a value is refused here instead.
+    if (normalizeSettings({ ...settings, ...patch })[key] !== value) return;
+    await this.host.updateSettings(patch);
   }
 
-  /** A shown/hidden toggle for one built-in or extension control. */
-  private visibilityToggle(containerEl: HTMLElement, id: string, label: string, description?: string): void {
-    const setting = new Setting(containerEl).setName(label);
-    if (description) setting.setDesc(description);
-    setting.addToggle((toggle) =>
-      toggle.setValue(!this.plugin.settings.hiddenControls.includes(id)).onChange(async (shown) => {
-        const hidden = this.plugin.settings.hiddenControls.filter((other) => other !== id);
-        await this.plugin.updateSettings({ hiddenControls: shown ? hidden : [...hidden, id] });
-      })
-    );
+  getSettingDefinitions(): SettingDefinitionItem[] {
+    return [...this.pageDefinitions(), this.toolbarGroup(), this.builtInGroup(), this.commandList(), this.extensionList()];
   }
 
-  /** One command button: its name, its icon (with a preview), and move and remove controls. */
-  private commandButtonRow(containerEl: HTMLElement, button: CommandButton, index: number): void {
-    const buttons = this.plugin.settings.commandButtons;
-    const name = this.plugin.commandName(button.commandId);
-    const setting = new Setting(containerEl)
-      .setName(name ?? "Missing command")
-      .setDesc(name ? "" : `${button.commandId}: the plugin that provides it is turned off or removed. The button returns with it.`);
+  private pageDefinitions(): SettingDefinitionItem[] {
+    return [
+      {
+        name: "Toggle scope",
+        desc: "This note only: pagination applies to the focused note and resets when it is closed or replaced. All notes: pagination applies everywhere at once and survives restarts.",
+        control: {
+          type: "dropdown",
+          key: "scope",
+          options: { note: "This note only (resets on close)", global: "All notes (persistent)" },
+        },
+      },
+      {
+        name: "Page size",
+        desc: "Sheet dimensions used for the paginated view.",
+        control: { type: "dropdown", key: "pageSize", options: Object.fromEntries(PAGE_SIZES.map((size) => [size.id, size.label])) },
+      },
+      {
+        name: "Margins (mm)",
+        desc: "Applied to all four sides of the on-screen sheet. 25.4 mm matches the Word default of one inch.",
+        control: { type: "slider", key: "marginMm", min: 10, max: 40, step: 1 },
+      },
+      {
+        name: "Properties in paginated view",
+        desc: "Move to sidebar: the panel leaves the page; open it on demand with the toolbar's properties button or Obsidian's own properties view. Collapse in place: the panel stays on the page, folded. Leave unchanged: no intervention. The note's frontmatter is never modified.",
+        control: {
+          type: "dropdown",
+          key: "propertiesMode",
+          options: { sidebar: "Move to sidebar", collapse: "Collapse in place", none: "Leave unchanged" },
+        },
+      },
+      {
+        name: "Gap between sheets (px)",
+        control: { type: "slider", key: "gapPx", min: 0, max: 64, step: 4 },
+      },
+    ];
+  }
+
+  private toolbarGroup(): SettingDefinitionItem {
+    return {
+      type: "group",
+      heading: "Toolbar",
+      items: [
+        {
+          name: "Show the toolbar on",
+          desc: "The formatting toolbar at the top of a note.",
+          control: { type: "dropdown", key: "toolbarScope", options: { paginated: "Paginated notes only", all: "All notes" } },
+        },
+      ],
+    };
+  }
+
+  /** A shown/hidden toggle for each built-in control. */
+  private builtInGroup(): SettingDefinitionItem {
+    return {
+      type: "group",
+      heading: "Built-in controls",
+      items: BUILT_IN_CONTROLS.map(({ id, label }) => ({
+        name: label,
+        desc: "Turn off to remove this control from the toolbar.",
+        control: { type: "toggle", key: `${SHOWN_PREFIX}${id}` },
+      })),
+    };
+  }
+
+  /**
+   * One row per command button, in toolbar order. Obsidian draws each row's delete
+   * button and drag handle; each row adds its icon field with a preview.
+   */
+  private commandList(): SettingDefinitionItem {
+    const buttons = this.host.settings.commandButtons;
+    return {
+      type: "list",
+      heading: "Command buttons",
+      emptyState: "Add any command from the command palette as a toolbar button.",
+      addItem:
+        buttons.length < MAX_COMMAND_BUTTONS
+          ? {
+              name: "Add command button",
+              action: () => new CommandPicker(this.app, this.host, (command) => void this.addCommandButton(command)).open(),
+            }
+          : undefined,
+      onReorder: (from, to) => {
+        const next = [...this.host.settings.commandButtons];
+        const [moved] = next.splice(from, 1);
+        if (moved) next.splice(to, 0, moved);
+        void this.saveButtons(next, true);
+      },
+      onDelete: (index) => void this.saveButtons(this.host.settings.commandButtons.filter((_, i) => i !== index), true),
+      items: buttons.map((button) => {
+        const name = this.host.commandName(button.commandId);
+        return {
+          name: name ?? "Missing command",
+          desc: name
+            ? "Icon: a name from lucide.dev."
+            : `${button.commandId}: the plugin that provides it is turned off or removed. The button returns with it.`,
+          searchable: false,
+          render: (setting: Setting) => this.iconField(setting, button),
+        };
+      }),
+    };
+  }
+
+  /** The icon field of one command button, with a live preview. Typing never redraws the tab. */
+  private iconField(setting: Setting, button: CommandButton): void {
     const preview = setting.controlEl.createSpan({ cls: "pagewise-settings-icon" });
     const showIcon = (icon: string) => {
       preview.empty();
@@ -165,44 +177,45 @@ export class PagewiseSettingTab extends PluginSettingTab {
       text
         .setPlaceholder(DEFAULT_COMMAND_ICON)
         .setValue(button.icon)
-        .onChange(async (value) => {
+        .onChange((value) => {
           const icon = value.trim();
           showIcon(icon);
           if (!getIcon(icon)) return;
-          await this.saveButtons(buttons.map((other, i) => (i === index ? { ...other, icon } : other)), false);
+          const next = this.host.settings.commandButtons.map((other) => (other.commandId === button.commandId ? { ...other, icon } : other));
+          void this.saveButtons(next, false);
         })
-    );
-    const move = (offset: number) => {
-      const next = [...buttons];
-      const [moved] = next.splice(index, 1);
-      next.splice(index + offset, 0, moved);
-      void this.saveButtons(next, true);
-    };
-    setting.addExtraButton((extra) =>
-      extra.setIcon("arrow-up").setTooltip("Move earlier on the toolbar").setDisabled(index === 0).onClick(() => move(-1))
-    );
-    setting.addExtraButton((extra) =>
-      extra.setIcon("arrow-down").setTooltip("Move later on the toolbar").setDisabled(index === buttons.length - 1).onClick(() => move(1))
-    );
-    setting.addExtraButton((extra) =>
-      extra
-        .setIcon("trash-2")
-        .setTooltip("Remove")
-        .onClick(() => void this.saveButtons(buttons.filter((_, i) => i !== index), true))
     );
   }
 
+  /** A shown/hidden toggle for each item another plugin added. */
+  private extensionList(): SettingDefinitionItem {
+    return {
+      type: "list",
+      heading: "Added by other plugins",
+      emptyState: "No other plugin has added a toolbar button.",
+      items: this.host.extensionItems().map(({ id, label }) => ({
+        name: label,
+        desc: id,
+        control: { type: "toggle", key: `${SHOWN_PREFIX}${id}` },
+      })),
+    };
+  }
+
   private async addCommandButton(command: PaletteCommand): Promise<void> {
-    const buttons = this.plugin.settings.commandButtons.filter((button) => button.commandId !== command.id);
+    const buttons = this.host.settings.commandButtons.filter((button) => button.commandId !== command.id);
     const icon = command.icon && getIcon(command.icon) ? command.icon : DEFAULT_COMMAND_ICON;
     await this.saveButtons([...buttons, { commandId: command.id, icon }], true);
   }
 
-  /** Saves the command buttons; `redraw` rebuilds this tab, which typing in an icon field must not do. */
+  /** Saves the command buttons; `redraw` rebuilds the rows, which typing in an icon field must not do. */
   private async saveButtons(commandButtons: CommandButton[], redraw: boolean): Promise<void> {
-    await this.plugin.updateSettings({ commandButtons });
-    if (redraw) this.display();
+    await this.host.updateSettings({ commandButtons });
+    if (redraw) this.update();
   }
+}
+
+function isScalarKey(key: string): key is ScalarKey {
+  return (SCALAR_KEYS as readonly string[]).includes(key);
 }
 
 /** Picks a command from the command palette's list for a new toolbar button. */

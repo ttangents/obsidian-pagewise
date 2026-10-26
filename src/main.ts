@@ -44,7 +44,7 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
       commandName: (id) => findCommand(this.app, id)?.name ?? null,
       runCommand: (id) => executeCommand(this.app, id),
       openSettings: () => {
-        if (!openSettingTab(this.app, this.manifest.id)) new Notice("Open Settings, then Pagewise, to customize the toolbar.");
+        if (!openSettingTab(this.app, this.manifest.id)) new Notice("Open settings, then Pagewise, to customize the toolbar.");
       },
     }, this.registry);
     // Extension items arrive and leave at any time; one rebuild covers a burst of them.
@@ -57,7 +57,7 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
       callback: () => void this.toggle(),
     });
     this.addRibbonIcon("book-open", "Toggle paginated view (Pagewise)", () => void this.toggle());
-    this.addSettingTab(new PagewiseSettingTab(this.app, this));
+    this.addSettingTab(new PagewiseSettingTab(this.app, this, this));
     this.registerLayoutTriggers();
     this.app.workspace.onLayoutReady(() => {
       this.controller.applySettings(this.settings);

@@ -138,7 +138,7 @@ export class PaginationController {
     this.pruneClosedViews();
     const views = [...this.active];
     if (this.settings.propertiesMode === "collapse" && this.properties.collapse(views)) {
-      this.pendingFrame = requestAnimationFrame(() => {
+      this.pendingFrame = window.requestAnimationFrame(() => {
         this.pendingFrame = null;
         this.layoutActiveViews();
       });
@@ -202,7 +202,7 @@ export class PaginationController {
 
   private cancelPendingFrame(): void {
     if (this.pendingFrame === null) return;
-    cancelAnimationFrame(this.pendingFrame);
+    window.cancelAnimationFrame(this.pendingFrame);
     this.pendingFrame = null;
   }
 

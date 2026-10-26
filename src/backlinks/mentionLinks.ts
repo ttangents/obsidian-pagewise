@@ -37,7 +37,8 @@ export class MentionLinks {
   private readonly watched = new Map<HTMLElement, MutationObserver>();
   /** Panels waiting for their property-only line to be redrawn, at most once per frame. */
   private readonly pending = new Set<HTMLElement>();
-  private frame: number | null = null;
+  /** The scheduled redraw, with the window whose frame it waits for (a pop-out has its own). */
+  private frame: { win: Window; id: number } | null = null;
 
   /** Watches the mentions panels of these panes and releases every other one. */
   sync(paneRoots: readonly HTMLElement[]): void {
@@ -69,7 +70,7 @@ export class MentionLinks {
   }
 
   dispose(): void {
-    if (this.frame !== null) cancelAnimationFrame(this.frame);
+    if (this.frame !== null) this.frame.win.cancelAnimationFrame(this.frame.id);
     this.frame = null;
     this.pending.clear();
     this.watched.forEach((observer, panel) => {
@@ -82,7 +83,8 @@ export class MentionLinks {
   private schedule(panel: HTMLElement): void {
     this.pending.add(panel);
     if (this.frame !== null) return;
-    this.frame = requestAnimationFrame(() => {
+    const win = panel.win;
+    const id = win.requestAnimationFrame(() => {
       this.frame = null;
       const panels = [...this.pending];
       this.pending.clear();
@@ -94,17 +96,18 @@ export class MentionLinks {
         observer.takeRecords();
       });
     });
+    this.frame = { win, id };
   }
 
   private onMutation(record: MutationRecord): void {
-    const target = record.target instanceof Element ? record.target : record.target.parentElement;
+    const target = record.target.instanceOf(Element) ? record.target : record.target.parentElement;
     const enclosing = target?.closest<HTMLElement>(MATCH_SELECTOR);
     if (enclosing) {
       styleExcerpt(enclosing);
       return;
     }
     record.addedNodes.forEach((node) => {
-      if (!(node instanceof Element)) return;
+      if (!node.instanceOf(Element)) return;
       if (node.matches(MATCH_SELECTOR)) styleExcerpt(node as HTMLElement);
       node.querySelectorAll<HTMLElement>(MATCH_SELECTOR).forEach(styleExcerpt);
     });
@@ -129,24 +132,22 @@ function styleExcerpt(excerpt: HTMLElement): void {
     const slice = kinds.subarray(offset, offset + length);
     offset += length;
     if (!slice.some(Boolean)) return;
-    const doc = node.ownerDocument;
-    const fragment = doc.createDocumentFragment();
+    const pieces: (string | HTMLElement)[] = [];
     let runStart = 0;
     for (let i = 1; i <= length; i++) {
       if (i < length && slice[i] === slice[runStart]) continue;
       const piece = node.data.slice(runStart, i);
       const kind = slice[runStart];
       if (kind === 0) {
-        fragment.append(doc.createTextNode(piece));
+        pieces.push(piece);
       } else {
-        const span = doc.createElement("span");
-        span.classList.add(WRAP_CLASS, ...STYLE_CLASSES.filter(([bit]) => kind & bit).map(([, name]) => name));
-        span.textContent = piece;
-        fragment.append(span);
+        // Created inside the excerpt, so it belongs to the excerpt's window; replaceWith moves it into place.
+        const classes = [WRAP_CLASS, ...STYLE_CLASSES.filter(([bit]) => kind & bit).map(([, name]) => name)];
+        pieces.push(excerpt.createSpan({ cls: classes, text: piece }));
       }
       runStart = i;
     }
-    node.replaceWith(fragment);
+    node.replaceWith(...pieces);
   });
 }
 
@@ -189,8 +190,8 @@ function gatherPropertyOnly(panel: HTMLElement): void {
     const names = cards.map((card) => card.querySelector(".search-result-file-title .tree-item-inner")?.textContent ?? "");
     if (line?.dataset.names === JSON.stringify(names)) return;
     if (!line) {
-      line = container.ownerDocument.createElement("div");
-      line.className = ALSO_LINKED_CLASS;
+      line = container.parentElement?.createDiv({ cls: ALSO_LINKED_CLASS }) ?? null;
+      if (!line) return;
       container.after(line);
     }
     drawLine(line, cards, names);
@@ -198,19 +199,11 @@ function gatherPropertyOnly(panel: HTMLElement): void {
 }
 
 function drawLine(line: HTMLElement, cards: HTMLElement[], names: string[]): void {
-  const doc = line.ownerDocument;
   line.dataset.names = JSON.stringify(names);
   line.replaceChildren();
-  const label = doc.createElement("span");
-  label.className = "pagewise-also-linked-label";
-  label.textContent = "Also linked from properties in ";
-  line.append(label);
+  line.createSpan({ cls: "pagewise-also-linked-label", text: "Also linked from properties in " });
   cards.forEach((card, index) => {
-    const name = doc.createElement("span");
-    name.className = "pagewise-also-linked-note";
-    name.textContent = names[index];
-    name.setAttribute("role", "link");
-    name.tabIndex = 0;
+    const name = line.createSpan({ cls: "pagewise-also-linked-note", text: names[index], attr: { role: "link", tabindex: "0" } });
     const open = (event: MouseEvent | KeyboardEvent) => {
       const title = card.querySelector<HTMLElement>(".search-result-file-title");
       title?.dispatchEvent(
@@ -223,8 +216,7 @@ function drawLine(line: HTMLElement, cards: HTMLElement[], names: string[]): voi
       event.preventDefault();
       open(event);
     });
-    line.append(name);
-    if (index < cards.length - 1) line.append(doc.createTextNode(", "));
+    if (index < cards.length - 1) line.appendText(", ");
   });
 }
 

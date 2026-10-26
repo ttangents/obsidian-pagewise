@@ -31,10 +31,9 @@ export class Paginator {
     plan.breaksBefore.forEach((height, index) => {
       if (height <= 0) return;
       page += 1;
-      const spacer = createSpacer(BREAK_CLASS, height, page);
-      blocks[index].before(spacer);
+      blocks[index].before(this.spacer(BREAK_CLASS, height, page));
     });
-    this.sizer.append(createSpacer(TAIL_CLASS, plan.tailPadding, page + 1));
+    this.spacer(TAIL_CLASS, plan.tailPadding, page + 1);
   }
 
   /** Removes every spacer this paginator inserted. */
@@ -47,20 +46,19 @@ export class Paginator {
   private blockElements(): HTMLElement[] {
     return Array.from(this.sizer.children).filter(
       (el): el is HTMLElement =>
-        el instanceof HTMLElement && !el.classList.contains(BREAK_CLASS) && !el.classList.contains(TAIL_CLASS)
+        el.instanceOf(HTMLElement) && !el.classList.contains(BREAK_CLASS) && !el.classList.contains(TAIL_CLASS)
     );
   }
 
   /** Top padding of the sizer, which is the page's top margin once Pagewise styling is active. */
   private contentInset(): number {
-    return parseFloat(getComputedStyle(this.sizer).paddingTop) || 0;
+    return parseFloat(this.sizer.win.getComputedStyle(this.sizer).paddingTop) || 0;
   }
-}
 
-function createSpacer(className: string, height: number, pageNumber: number): HTMLElement {
-  const spacer = document.createElement("div");
-  spacer.className = className;
-  spacer.style.height = `${height}px`;
-  spacer.dataset.page = String(pageNumber);
-  return spacer;
+  /** A spacer appended to the sizer; a break is then moved before its block. */
+  private spacer(className: string, height: number, pageNumber: number): HTMLElement {
+    const spacer = this.sizer.createDiv({ cls: className, attr: { "data-page": String(pageNumber) } });
+    spacer.style.height = `${height}px`;
+    return spacer;
+  }
 }

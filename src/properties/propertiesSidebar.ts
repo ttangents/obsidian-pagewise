@@ -66,7 +66,7 @@ export class PropertiesSidebar {
         return;
       }
       if (!header) {
-        header = createHeader(content.ownerDocument);
+        header = createHeader(content);
         content.prepend(header);
       }
       const name = header.querySelector<HTMLElement>(".pagewise-inspector-file");
@@ -110,14 +110,10 @@ function isPinned(leaf: WorkspaceLeaf): boolean {
   return leaf.getViewState().pinned === true;
 }
 
-function createHeader(doc: Document): HTMLElement {
-  const header = doc.createElement("div");
-  header.className = HEADER_CLASS;
-  const title = doc.createElement("div");
-  title.className = "pagewise-inspector-title";
-  title.textContent = "Properties";
-  const file = doc.createElement("div");
-  file.className = "pagewise-inspector-file";
-  header.append(title, file);
+/** Builds the heading inside the view's content; the caller moves it to the top. */
+function createHeader(content: HTMLElement): HTMLElement {
+  const header = content.createDiv({ cls: HEADER_CLASS });
+  header.createDiv({ cls: "pagewise-inspector-title", text: "Properties" });
+  header.createDiv({ cls: "pagewise-inspector-file" });
   return header;
 }

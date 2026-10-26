@@ -77,10 +77,8 @@ export function addSubmenu(menu: Menu, title: string, icon: IconChoice, entries:
       if (fallback) item.onClick(fallback.action);
       return;
     }
-    const arrow = document.createElement("span");
-    arrow.className = "pagewise-submenu-arrow";
+    const arrow = itemDom.createSpan({ cls: "pagewise-submenu-arrow" });
     setIcon(arrow, "chevron-right");
-    itemDom.append(arrow);
 
     let submenu: Menu | null = null;
     const close = () => {
@@ -116,8 +114,5 @@ export function addHotkeyHint(app: App, item: MenuItem, commandId: string): void
   const hint = hotkeyFor(app, commandId);
   const dom = menuItemDom(item);
   if (!hint || !dom) return;
-  const span = document.createElement("span");
-  span.className = "pagewise-hotkey";
-  span.textContent = hint;
-  dom.append(span);
+  dom.createSpan({ cls: "pagewise-hotkey", text: hint });
 }
