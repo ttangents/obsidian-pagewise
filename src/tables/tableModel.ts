@@ -5,8 +5,10 @@
  *
  * Operations return a new model, or null when the request is invalid where the
  * cursor sits (out of range, last remaining column); the caller treats null as
- * a silent no-op. Body rows are normalized to the header's column count, which
- * matches what GFM renders.
+ * a silent no-op. Body rows shorter than the header are padded with empty cells.
+ * A row wider than the header keeps its extra cells after the last column, in
+ * place, through every operation: GFM does not render them, but they are the
+ * user's text, so no edit may delete them.
  */
 
 export type ColumnAlignment = "none" | "left" | "center" | "right";
@@ -14,6 +16,7 @@ export type ColumnAlignment = "none" | "left" | "center" | "right";
 export interface TableModel {
   header: string[];
   alignments: ColumnAlignment[];
+  /** Body rows: at least the header's width, plus any extra cells the source row had. */
   rows: string[][];
   /** Leading whitespace of the original first line, reapplied to every serialized line. */
   indent: string;
@@ -40,15 +43,20 @@ export function parseTable(lines: string[]): TableModel | null {
   };
 }
 
-/** Serializes with padded cells and aligned pipes; parse + serialize is the tidy operation. */
+/**
+ * Serializes with padded cells and aligned pipes; parse + serialize is the tidy
+ * operation. Extra cells beyond the header are padded and aligned too.
+ */
 export function serializeTable(model: TableModel): string[] {
-  const widths = model.header.map((cell, col) =>
-    Math.max(3, cell.length, ...model.rows.map((row) => (row[col] ?? "").length))
+  const rows = model.rows.map((row) => normalizeRow(row, model.header.length));
+  const columnCount = Math.max(model.header.length, ...rows.map((row) => row.length));
+  const widths = Array.from({ length: columnCount }, (_, col) =>
+    Math.max(3, (model.header[col] ?? "").length, ...rows.map((row) => (row[col] ?? "").length))
   );
   const line = (cells: string[]): string =>
     `${model.indent}| ${cells.map((cell, col) => cell.padEnd(widths[col])).join(" | ")} |`;
   const delimiter = model.alignments.map((alignment, col) => delimiterCell(alignment, widths[col]));
-  return [line(model.header), line(delimiter), ...model.rows.map((row) => line(normalizeRow(row, widths.length)))];
+  return [line(model.header), line(delimiter), ...rows.map(line)];
 }
 
 /** Sets the alignment of every column from startColumn to endColumn inclusive. */
@@ -152,11 +160,14 @@ export function sortRows(model: TableModel, column: number, ascending: boolean):
 /**
  * Swaps rows and columns. The header row becomes the first column and the first
  * column becomes the header row, which keeps label semantics on both axes.
- * Alignments do not survive the axis swap and reset to default.
+ * Alignments do not survive the axis swap and reset to default. Extra cells
+ * beyond the header become cells of new, unlabelled rows, so none is lost.
  */
 export function transpose(model: TableModel): TableModel {
-  const header = [model.header[0] ?? "", ...model.rows.map((row) => row[0] ?? "")];
-  const rows = model.header.slice(1).map((label, i) => [label, ...model.rows.map((row) => row[i + 1] ?? "")]);
+  const width = Math.max(model.header.length, ...model.rows.map((row) => row.length));
+  const labels = normalizeRow(model.header, width);
+  const header = [labels[0] ?? "", ...model.rows.map((row) => row[0] ?? "")];
+  const rows = labels.slice(1).map((label, i) => [label, ...model.rows.map((row) => row[i + 1] ?? "")]);
   return {
     ...model,
     header,
@@ -216,8 +227,13 @@ function delimiterCell(alignment: ColumnAlignment, width: number): string {
   }
 }
 
+/**
+ * Pads a row to the header's width. Cells beyond it are kept; only trailing empty
+ * ones are dropped, since they hold no text.
+ */
 function normalizeRow(cells: string[], width: number): string[] {
-  const row = cells.slice(0, width);
+  const row = [...cells];
+  while (row.length > width && row[row.length - 1] === "") row.pop();
   while (row.length < width) row.push("");
   return row;
 }

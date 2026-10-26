@@ -40,3 +40,10 @@ test("deletes the whole table", () => {
   deleteTable(editor.asEditor());
   assert.deepEqual(editor.lines, ["Intro", "", "", "Outro"]);
 });
+
+test("an edit on a table with a row wider than the header keeps the extra text", () => {
+  const doc = ["| a | b |", "| - | - |", "| 1 | 2 | extra note text |"].join("\n");
+  const editor = new FakeEditor(doc, { line: 2, ch: 2 });
+  applyTableEdit(editor.asEditor(), (model) => model);
+  assert.equal(editor.lines[2], "| 1   | 2   | extra note text |");
+});

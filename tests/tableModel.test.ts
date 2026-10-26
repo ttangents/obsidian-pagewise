@@ -78,3 +78,31 @@ test("transposes and transposes back", () => {
   const back = m.transpose(x);
   assert.deepEqual([back.header, back.rows], [t.header, t.rows]);
 });
+
+test("keeps cells beyond the header's width through tidy and every edit", () => {
+  const wide = m.parseTable(["| a | b |", "| - | - |", "| 1 | 2 | extra note text |", "| 3 | 4 |"])!;
+  const kept = (t: m.TableModel) => m.serializeTable(t).join("\n").includes("extra note text");
+  assert.deepEqual(m.serializeTable(wide), [
+    "| a   | b   |",
+    "| --- | --- |",
+    "| 1   | 2   | extra note text |",
+    "| 3   | 4   |",
+  ]);
+  assert.deepEqual(m.parseTable(m.serializeTable(wide)), wide, "tidy round-trips");
+  assert.ok(kept(m.setAlignment(wide, 0, 1, "center")!), "align");
+  assert.ok(kept(m.insertRow(wide, 0)), "insert row");
+  assert.ok(kept(m.insertColumn(wide, 2)), "insert column at the right edge");
+  assert.ok(kept(m.insertColumn(wide, 0)), "insert column at the left edge");
+  assert.ok(kept(m.deleteColumn(wide, 0)!), "delete column");
+  assert.ok(kept(m.moveColumn(wide, 1, -1)!), "move column");
+  assert.ok(kept(m.moveRow(wide, 0, 1)!), "move row");
+  assert.ok(kept(m.duplicateRow(wide, 1)!), "duplicate row");
+  assert.ok(kept(m.sortRows(wide, 0, false)!), "sort");
+  assert.ok(kept(m.transpose(wide)), "transpose");
+  assert.deepEqual(m.moveColumn(wide, 1, -1)!.rows[0], ["2", "1", "extra note text"], "extra cells keep their place");
+});
+
+test("drops only empty cells beyond the header", () => {
+  const t = m.parseTable(["| a | b |", "| - | - |", "| 1 | 2 | |"])!;
+  assert.deepEqual(t.rows[0], ["1", "2"]);
+});
