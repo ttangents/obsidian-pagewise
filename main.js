@@ -27,6 +27,7 @@ var import_obsidian8 = require("obsidian");
 
 // src/toolbar/extensionApi.ts
 var API_EVENT = "pagewise:api";
+var REQUEST_EVENT = "pagewise:request";
 var MAX_ID = 200;
 var MAX_LABEL = 120;
 function validateToolbarItem(input) {
@@ -2036,7 +2037,63 @@ function inlineStyles(text) {
       for (let i = innerStart; i < innerEnd; i++) if (!(styles[i] & Style.SYNTAX)) styles[i] |= style;
     }
   }
+  styleCutEdges(text, styles, locked);
   return styles;
+}
+var CUT = "...";
+var CUT_PAIRS = [
+  { marker: "==", style: Style.HIGHLIGHT },
+  { marker: "**", style: Style.BOLD },
+  { marker: "~~", style: Style.STRIKE }
+];
+function styleCutEdges(text, styles, locked) {
+  const head = text.startsWith(CUT) ? CUT.length : -1;
+  const tailCut = text.trimEnd().endsWith(CUT) ? text.trimEnd().length - CUT.length : -1;
+  const unclaimed = (index, length) => !locked.subarray(index, index + length).some(Boolean);
+  const claim = (start, end, style) => {
+    for (let i = start; i < end; i++) if (!locked[i]) styles[i] |= style;
+  };
+  const hide = (start, end) => {
+    styles.fill(Style.SYNTAX, start, end);
+    locked.fill(1, start, end);
+  };
+  const linkWords = (start, end) => {
+    const pipe = text.lastIndexOf("|", end - 1);
+    if (pipe >= start) hide(start, pipe + 1);
+    claim(pipe >= start ? pipe + 1 : start, end, Style.LINK);
+  };
+  if (head >= 0) {
+    const close = text.indexOf("]]", head);
+    const open = text.indexOf("[[", head);
+    if (close > head && (open < 0 || close < open) && unclaimed(head, close + 2 - head)) {
+      hide(close, close + 2);
+      linkWords(head, close);
+    }
+  }
+  if (tailCut >= 0) {
+    const open = text.lastIndexOf("[[", tailCut);
+    if (open >= 0 && text.indexOf("]]", open) < 0 && unclaimed(open, tailCut - open)) {
+      const start = open > 0 && text[open - 1] === "!" ? open - 1 : open;
+      hide(start, open + 2);
+      linkWords(open + 2, text.slice(0, tailCut).trimEnd().length);
+    }
+  }
+  for (const { marker, style } of CUT_PAIRS) {
+    const positions = [];
+    for (let i = text.indexOf(marker); i >= 0; i = text.indexOf(marker, i + marker.length)) {
+      if (unclaimed(i, marker.length)) positions.push(i);
+    }
+    if (positions.length % 2 === 0) continue;
+    if (head >= 0 && positions[0] > head) {
+      const at = positions.shift();
+      hide(at, at + marker.length);
+      claim(head, at, style);
+    } else if (tailCut >= 0 && positions[positions.length - 1] < tailCut) {
+      const at = positions.pop();
+      hide(at, at + marker.length);
+      claim(at + marker.length, text.slice(0, tailCut).trimEnd().length, style);
+    }
+  }
 }
 
 // src/backlinks/mentionLinks.ts
@@ -2052,9 +2109,14 @@ var STYLE_CLASSES = [
   [Style.CODE, "pagewise-md-code"]
 ];
 var SKIP_SELECTOR = ".search-result-hover-button";
+var PROPERTY_ONLY_CLASS = "pagewise-mention-property-only";
+var ALSO_LINKED_CLASS = "pagewise-also-linked";
 var MentionLinks = class {
   constructor() {
     this.watched = /* @__PURE__ */ new Map();
+    /** Panels waiting for their property-only line to be redrawn, at most once per frame. */
+    this.pending = /* @__PURE__ */ new Set();
+    this.frame = null;
   }
   /** Watches the mentions panels of these panes and releases every other one. */
   sync(paneRoots) {
@@ -2071,18 +2133,42 @@ var MentionLinks = class {
     current.forEach((panel) => {
       if (this.watched.has(panel)) return;
       const Observer = panel.ownerDocument.defaultView?.MutationObserver ?? MutationObserver;
-      const observer = new Observer((records) => records.forEach((record) => this.onMutation(record)));
+      const observer = new Observer((records) => {
+        const own = records.every((record) => record.target.closest?.(`.${ALSO_LINKED_CLASS}`));
+        if (own) return;
+        records.forEach((record) => this.onMutation(record));
+        this.schedule(panel);
+      });
       observer.observe(panel, { childList: true, subtree: true });
       this.watched.set(panel, observer);
       panel.querySelectorAll(MATCH_SELECTOR).forEach(styleExcerpt);
+      this.schedule(panel);
     });
   }
   dispose() {
+    if (this.frame !== null) cancelAnimationFrame(this.frame);
+    this.frame = null;
+    this.pending.clear();
     this.watched.forEach((observer, panel) => {
       observer.disconnect();
       restore(panel);
     });
     this.watched.clear();
+  }
+  schedule(panel) {
+    this.pending.add(panel);
+    if (this.frame !== null) return;
+    this.frame = requestAnimationFrame(() => {
+      this.frame = null;
+      const panels = [...this.pending];
+      this.pending.clear();
+      panels.forEach((target) => {
+        const observer = this.watched.get(target);
+        if (!observer) return;
+        gatherPropertyOnly(target);
+        observer.takeRecords();
+      });
+    });
   }
   onMutation(record) {
     const target = record.target instanceof Element ? record.target : record.target.parentElement;
@@ -2141,7 +2227,63 @@ function textNodes(excerpt) {
   }
   return nodes;
 }
+function gatherPropertyOnly(panel) {
+  panel.querySelectorAll(".search-result-container").forEach((container) => {
+    const cards = [];
+    container.querySelectorAll(".search-result").forEach((card) => {
+      const matches = Array.from(card.querySelectorAll(MATCH_SELECTOR));
+      const propertyOnly = matches.length > 0 && matches.every((match) => !match.querySelector(`:scope > ${SKIP_SELECTOR}`));
+      card.classList.toggle(PROPERTY_ONLY_CLASS, propertyOnly);
+      if (propertyOnly) cards.push(card);
+    });
+    let line = container.nextElementSibling?.classList.contains(ALSO_LINKED_CLASS) ? container.nextElementSibling : null;
+    if (cards.length === 0) {
+      line?.remove();
+      return;
+    }
+    const names = cards.map((card) => card.querySelector(".search-result-file-title .tree-item-inner")?.textContent ?? "");
+    if (line?.dataset.names === JSON.stringify(names)) return;
+    if (!line) {
+      line = container.ownerDocument.createElement("div");
+      line.className = ALSO_LINKED_CLASS;
+      container.after(line);
+    }
+    drawLine(line, cards, names);
+  });
+}
+function drawLine(line, cards, names) {
+  const doc = line.ownerDocument;
+  line.dataset.names = JSON.stringify(names);
+  line.replaceChildren();
+  const label = doc.createElement("span");
+  label.className = "pagewise-also-linked-label";
+  label.textContent = "Also linked from properties in ";
+  line.append(label);
+  cards.forEach((card, index) => {
+    const name = doc.createElement("span");
+    name.className = "pagewise-also-linked-note";
+    name.textContent = names[index];
+    name.setAttribute("role", "link");
+    name.tabIndex = 0;
+    const open = (event) => {
+      const title = card.querySelector(".search-result-file-title");
+      title?.dispatchEvent(
+        new MouseEvent("click", { bubbles: true, cancelable: true, metaKey: event.metaKey, ctrlKey: event.ctrlKey, shiftKey: event.shiftKey, altKey: event.altKey })
+      );
+    };
+    name.addEventListener("click", open);
+    name.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") return;
+      event.preventDefault();
+      open(event);
+    });
+    line.append(name);
+    if (index < cards.length - 1) line.append(doc.createTextNode(", "));
+  });
+}
 function restore(panel) {
+  panel.querySelectorAll(`.${ALSO_LINKED_CLASS}`).forEach((line) => line.remove());
+  panel.querySelectorAll(`.${PROPERTY_ONLY_CLASS}`).forEach((card) => card.classList.remove(PROPERTY_ONLY_CLASS));
   panel.querySelectorAll(`.${WRAP_CLASS}`).forEach((span) => {
     const parent = span.parentElement;
     span.replaceWith(span.ownerDocument.createTextNode(span.textContent ?? ""));
@@ -2247,6 +2389,7 @@ var PagewisePlugin = class extends import_obsidian8.Plugin {
       })
     );
     this.registerEvent(workspace.on("css-change", () => this.controller.requestLayout()));
+    this.registerEvent(workspace.on(REQUEST_EVENT, () => workspace.trigger(API_EVENT, this.api)));
     this.registerEvent(workspace.on("resize", () => this.syncSettled()));
     this.registerEvent(this.app.vault.on("rename", () => this.syncSettled()));
     this.registerDomEvent(window, "resize", () => this.controller.requestLayout());

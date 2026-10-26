@@ -575,15 +575,42 @@
 /* Mentions that live in the source note's properties ("related: [[...]] [[...]]") stay
  * off the cards, as in Home Cards. Obsidian builds a property match from spans alone
  * and gives every text excerpt its "more context" buttons, so a match without those
- * buttons is a property match. A card whose only mentions are properties shows just
- * its title. Unlinked mentions are always text excerpts and keep every match. */
+ * buttons is a property match. Unlinked mentions are always text excerpts and keep
+ * every match. */
 .workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .search-result-file-match:not(:has(> .search-result-hover-button)) {
   display: none;
 }
 
-.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .search-result:not(:has(.search-result-file-match > .search-result-hover-button)) .search-result-file-title {
-  padding-bottom: 0;
-  margin-bottom: 0;
+/* A card whose mentions are all in properties gives way to one line of note names
+ * under the cards (MentionLinks draws it). The footer stays a list of what other
+ * notes say about this one; the map of a note's neighbours belongs to Home Cards. */
+.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .search-result.pagewise-mention-property-only {
+  display: none !important;
+}
+
+/* A quiet line: the names read as a list in text colour and turn into links under
+ * the pointer, so the line never outweighs the cards above it. */
+.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .pagewise-also-linked {
+  padding: 2px 4px 12px;
+  font-size: 0.82em;
+  line-height: 1.6;
+  color: var(--text-faint);
+}
+
+.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .pagewise-also-linked-note {
+  color: var(--text-muted);
+  cursor: var(--cursor-link, pointer);
+}
+
+.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .pagewise-also-linked-note:hover {
+  color: var(--link-color-hover, var(--text-accent-hover));
+  text-decoration: underline;
+}
+
+.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .pagewise-also-linked-note:focus-visible {
+  border-radius: var(--pagewise-radius-mark);
+  box-shadow: 0 0 0 2px var(--background-modifier-border-focus);
+  outline: none;
 }
 
 /* Excerpts read as the note renders: MentionLinks wraps the Markdown markers (link

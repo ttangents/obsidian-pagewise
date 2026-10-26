@@ -47,8 +47,15 @@ export interface PagewiseApi {
   refreshToolbar(): void;
 }
 
-/** The workspace event Pagewise triggers with its API on load, and with null on unload. */
+/** The workspace event Pagewise triggers with its API on load and on request, and with null on unload. */
 export const API_EVENT = "pagewise:api";
+
+/**
+ * The workspace event another plugin triggers to ask for the API; Pagewise answers
+ * with API_EVENT. Together they let a plugin that uses only Obsidian's public API
+ * connect in either load order, without reading Pagewise's plugin instance.
+ */
+export const REQUEST_EVENT = "pagewise:request";
 
 const MAX_ID = 200;
 const MAX_LABEL = 120;

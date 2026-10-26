@@ -1,5 +1,5 @@
-import { debounce, Notice, Plugin } from "obsidian";
-import { API_EVENT, type PagewiseApi } from "./toolbar/extensionApi";
+import { debounce, Notice, Plugin, type Events } from "obsidian";
+import { API_EVENT, REQUEST_EVENT, type PagewiseApi } from "./toolbar/extensionApi";
 import { ToolbarRegistry, createApi } from "./toolbar/extensionRegistry";
 import { PaginationController } from "./pagination/controller";
 import { PropertiesSidebar } from "./properties/propertiesSidebar";
@@ -124,6 +124,8 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
       })
     );
     this.registerEvent(workspace.on("css-change", () => this.controller.requestLayout()));
+    // A plugin that loaded after Pagewise asks for the toolbar API; Pagewise answers.
+    this.registerEvent((workspace as Events).on(REQUEST_EVENT, () => workspace.trigger(API_EVENT, this.api)));
     // Fires when a sidebar opens or closes, which changes what Properties shows.
     this.registerEvent(workspace.on("resize", () => this.syncSettled()));
     this.registerEvent(this.app.vault.on("rename", () => this.syncSettled()));

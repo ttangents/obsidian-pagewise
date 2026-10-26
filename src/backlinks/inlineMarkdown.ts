@@ -103,5 +103,75 @@ export function inlineStyles(text: string): Uint8Array {
       for (let i = innerStart; i < innerEnd; i++) if (!(styles[i] & Style.SYNTAX)) styles[i] |= style;
     }
   }
+  styleCutEdges(text, styles, locked);
   return styles;
+}
+
+/** Obsidian marks an excerpt cut short with "..." at either end. */
+const CUT = "...";
+
+/** Paired markers whose other half an excerpt's cut can remove. */
+const CUT_PAIRS: readonly { marker: string; style: number }[] = [
+  { marker: "==", style: Style.HIGHLIGHT },
+  { marker: "**", style: Style.BOLD },
+  { marker: "~~", style: Style.STRIKE },
+];
+
+/**
+ * An excerpt that starts or ends mid-sentence can hold half of a link or a highlight:
+ * "...development advisory]]" or "==(Not yet published ...". Where the excerpt's own
+ * "..." shows the cut, the unmatched half is read as if its partner lay beyond the
+ * cut: the marker hides and the words between it and the cut take the style.
+ */
+function styleCutEdges(text: string, styles: Uint8Array, locked: Uint8Array): void {
+  const head = text.startsWith(CUT) ? CUT.length : -1;
+  const tailCut = text.trimEnd().endsWith(CUT) ? text.trimEnd().length - CUT.length : -1;
+  const unclaimed = (index: number, length: number) => !locked.subarray(index, index + length).some(Boolean);
+  const claim = (start: number, end: number, style: number) => {
+    for (let i = start; i < end; i++) if (!locked[i]) styles[i] |= style;
+  };
+  const hide = (start: number, end: number) => {
+    styles.fill(Style.SYNTAX, start, end);
+    locked.fill(1, start, end);
+  };
+  /** Shows a link's tail as link words; an alias hides the target before its "|". */
+  const linkWords = (start: number, end: number) => {
+    const pipe = text.lastIndexOf("|", end - 1);
+    if (pipe >= start) hide(start, pipe + 1);
+    claim(pipe >= start ? pipe + 1 : start, end, Style.LINK);
+  };
+
+  if (head >= 0) {
+    const close = text.indexOf("]]", head);
+    const open = text.indexOf("[[", head);
+    if (close > head && (open < 0 || close < open) && unclaimed(head, close + 2 - head)) {
+      hide(close, close + 2);
+      linkWords(head, close);
+    }
+  }
+  if (tailCut >= 0) {
+    const open = text.lastIndexOf("[[", tailCut);
+    if (open >= 0 && text.indexOf("]]", open) < 0 && unclaimed(open, tailCut - open)) {
+      const start = open > 0 && text[open - 1] === "!" ? open - 1 : open;
+      hide(start, open + 2);
+      linkWords(open + 2, text.slice(0, tailCut).trimEnd().length);
+    }
+  }
+
+  for (const { marker, style } of CUT_PAIRS) {
+    const positions: number[] = [];
+    for (let i = text.indexOf(marker); i >= 0; i = text.indexOf(marker, i + marker.length)) {
+      if (unclaimed(i, marker.length)) positions.push(i);
+    }
+    if (positions.length % 2 === 0) continue;
+    if (head >= 0 && positions[0] > head) {
+      const at = positions.shift()!;
+      hide(at, at + marker.length);
+      claim(head, at, style);
+    } else if (tailCut >= 0 && positions[positions.length - 1] < tailCut) {
+      const at = positions.pop()!;
+      hide(at, at + marker.length);
+      claim(at + marker.length, text.slice(0, tailCut).trimEnd().length, style);
+    }
+  }
 }

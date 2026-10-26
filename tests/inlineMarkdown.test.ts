@@ -47,7 +47,7 @@ test("inline code and markdown links", () => {
 });
 
 test("text that only looks like syntax stays as written", () => {
-  assert.equal(shown("as [[Can..."), "as [[Can...");
+  assert.equal(shown("as [[Can and more"), "as [[Can and more");
   assert.equal(shown("a == b and c == d"), "a == b and c == d");
   assert.equal(shown("snake_case_name and 2 * 3 * 4"), "snake_case_name and 2 * 3 * 4");
   assert.equal(shown("- list item"), "- list item");
@@ -56,4 +56,17 @@ test("text that only looks like syntax stays as written", () => {
 
 test("backslash escapes show the character, not the backslash", () => {
   assert.equal(shown("\\*not italic\\*"), "*not italic*");
+});
+
+test("a link or highlight cut by the excerpt's ellipsis loses its stray half", () => {
+  assert.equal(shown("...citizen development advisory]], the AI cost"), "...<link:citizen development advisory>, the AI cost");
+  assert.equal(shown("...the Hoya call|Hoya]] said"), "...<link:Hoya> said");
+  assert.equal(shown("strategy. ==(Not yet published ..."), "strategy. <hl:(Not yet published> ...");
+  assert.equal(shown("see [[Microsoft 365 E7 lic..."), "see <link:Microsoft 365 E7 lic>...");
+  assert.equal(shown("...ended here== and **bold** then"), "...<hl:ended here> and <b:bold> then");
+});
+
+test("without an ellipsis, unmatched markers stay as written", () => {
+  assert.equal(shown("advisory]], the AI"), "advisory]], the AI");
+  assert.equal(shown("strategy. ==(Not yet published"), "strategy. ==(Not yet published");
 });
