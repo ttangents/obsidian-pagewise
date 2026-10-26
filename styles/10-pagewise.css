@@ -572,12 +572,13 @@
   background: var(--background-modifier-hover);
 }
 
-/* Mentions that live in the source note's properties ("related: [[...]] [[...]]") stay
- * off the cards, as in Home Cards. Obsidian builds a property match from spans alone
- * and gives every text excerpt its "more context" buttons, so a match without those
- * buttons is a property match. Unlinked mentions are always text excerpts and keep
- * every match. */
-.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .search-result-file-match:not(:has(> .search-result-hover-button)) {
+/* Within a card that also has text excerpts, a mention that lives in the source
+ * note's properties ("related: [[...]]") stays off the card, as in Home Cards.
+ * Obsidian gives every text excerpt its "more context" buttons and builds a property
+ * match without them. The rule applies only while the panel shows such buttons at
+ * all, so if Obsidian drops them, every excerpt shows instead of none. Whole cards
+ * of property mentions are decided from the metadata cache (MentionLinks). */
+.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane:has(.search-result-hover-button) .search-result-file-match:not(:has(> .search-result-hover-button)) {
   display: none;
 }
 

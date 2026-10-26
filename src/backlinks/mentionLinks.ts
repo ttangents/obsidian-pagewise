@@ -1,4 +1,6 @@
+import { getLinkpath, type App } from "obsidian";
 import { Style, inlineStyles } from "./inlineMarkdown";
+import { propertyOnlyNames, type LinkIndex } from "./propertyLinks";
 
 const MATCH_SELECTOR = ".search-result-file-match";
 /** Every wrapper Pagewise adds carries this class, plus one class per style. */
@@ -32,27 +34,40 @@ const ALSO_LINKED_CLASS = "pagewise-also-linked";
  * Notes that mention this one only in their properties get no card. They are listed
  * by name in one line under the cards, "Also linked from properties in: …", and each
  * name opens its note through Obsidian's own result title, so modifier keys work.
+ * Which notes those are comes from Obsidian's metadata cache (propertyLinks); the
+ * panel's DOM serves only to find each note's card by its title.
  */
 export class MentionLinks {
   private readonly watched = new Map<HTMLElement, MutationObserver>();
+  /** The note each watched panel lists mentions of. */
+  private readonly targets = new Map<HTMLElement, string>();
   /** Panels waiting for their property-only line to be redrawn, at most once per frame. */
   private readonly pending = new Set<HTMLElement>();
   /** The scheduled redraw, with the window whose frame it waits for (a pop-out has its own). */
   private frame: { win: Window; id: number } | null = null;
 
+  constructor(private readonly links: LinkIndex) {}
+
   /** Watches the mentions panels of these panes and releases every other one. */
-  sync(paneRoots: readonly HTMLElement[]): void {
-    const current = new Set<HTMLElement>();
-    paneRoots.forEach((root) =>
-      root.querySelectorAll<HTMLElement>(".embedded-backlinks").forEach((panel) => current.add(panel))
-    );
+  sync(panes: readonly { root: HTMLElement; path: string | null }[]): void {
+    const current = new Map<HTMLElement, string>();
+    panes.forEach(({ root, path }) => {
+      if (path === null) return;
+      root.querySelectorAll<HTMLElement>(".embedded-backlinks").forEach((panel) => current.set(panel, path));
+    });
     this.watched.forEach((observer, panel) => {
       if (current.has(panel) && panel.isConnected) return;
       observer.disconnect();
       this.watched.delete(panel);
+      this.targets.delete(panel);
       restore(panel);
     });
-    current.forEach((panel) => {
+    current.forEach((path, panel) => {
+      if (this.targets.get(panel) !== path) {
+        // A pane that now shows another note reuses its panel; its line is redrawn for the new note.
+        this.targets.set(panel, path);
+        if (this.watched.has(panel)) this.schedule(panel);
+      }
       if (this.watched.has(panel)) return;
       const Observer = panel.ownerDocument.defaultView?.MutationObserver ?? MutationObserver;
       const observer = new Observer((records) => {
@@ -78,6 +93,7 @@ export class MentionLinks {
       restore(panel);
     });
     this.watched.clear();
+    this.targets.clear();
   }
 
   private schedule(panel: HTMLElement): void {
@@ -90,8 +106,9 @@ export class MentionLinks {
       this.pending.clear();
       panels.forEach((target) => {
         const observer = this.watched.get(target);
-        if (!observer) return;
-        gatherPropertyOnly(target);
+        const path = this.targets.get(target);
+        if (!observer || path === undefined) return;
+        gatherPropertyOnly(target, propertyOnlyNames(this.links, path));
         // Pagewise's own edits must not wake the observer that triggered them.
         observer.takeRecords();
       });
@@ -165,37 +182,38 @@ function textNodes(excerpt: HTMLElement): Text[] {
 }
 
 /**
- * Marks the cards whose rendered mentions are all property matches and lists those
- * notes in one line after their result list. A card whose mentions have not rendered
- * yet is left as it is. A property match is the one kind Obsidian builds without its
- * "more context" buttons.
+ * Marks the linked-mention cards of the notes that link here only from their
+ * properties, and lists those notes in one line after the cards. Unlinked mentions,
+ * the panel's second result list, are text matches and stay as they are.
  */
-function gatherPropertyOnly(panel: HTMLElement): void {
-  panel.querySelectorAll<HTMLElement>(".search-result-container").forEach((container) => {
-    const cards: HTMLElement[] = [];
-    container.querySelectorAll<HTMLElement>(".search-result").forEach((card) => {
-      const matches = Array.from(card.querySelectorAll<HTMLElement>(MATCH_SELECTOR));
-      const propertyOnly =
-        matches.length > 0 && matches.every((match) => !match.querySelector(`:scope > ${SKIP_SELECTOR}`));
-      card.classList.toggle(PROPERTY_ONLY_CLASS, propertyOnly);
-      if (propertyOnly) cards.push(card);
-    });
-    let line = container.nextElementSibling?.classList.contains(ALSO_LINKED_CLASS)
-      ? (container.nextElementSibling as HTMLElement)
-      : null;
-    if (cards.length === 0) {
-      line?.remove();
-      return;
-    }
-    const names = cards.map((card) => card.querySelector(".search-result-file-title .tree-item-inner")?.textContent ?? "");
-    if (line?.dataset.names === JSON.stringify(names)) return;
-    if (!line) {
-      line = container.parentElement?.createDiv({ cls: ALSO_LINKED_CLASS }) ?? null;
-      if (!line) return;
-      container.after(line);
-    }
-    drawLine(line, cards, names);
+function gatherPropertyOnly(panel: HTMLElement, propertyOnly: ReadonlySet<string>): void {
+  const container = panel.querySelector<HTMLElement>(".search-result-container");
+  if (!container) return;
+  const cards: HTMLElement[] = [];
+  container.querySelectorAll<HTMLElement>(".search-result").forEach((card) => {
+    const hide = propertyOnly.has(cardName(card));
+    card.classList.toggle(PROPERTY_ONLY_CLASS, hide);
+    if (hide) cards.push(card);
   });
+  const next = container.nextElementSibling;
+  let line = next?.instanceOf(HTMLElement) && next.classList.contains(ALSO_LINKED_CLASS) ? next : null;
+  if (cards.length === 0) {
+    line?.remove();
+    return;
+  }
+  const names = cards.map(cardName);
+  if (line?.dataset.names === JSON.stringify(names)) return;
+  if (!line) {
+    line = container.parentElement?.createDiv({ cls: ALSO_LINKED_CLASS }) ?? null;
+    if (!line) return;
+    container.after(line);
+  }
+  drawLine(line, cards, names);
+}
+
+/** The note name a result card shows in its title. */
+function cardName(card: HTMLElement): string {
+  return card.querySelector(".search-result-file-title .tree-item-inner")?.textContent ?? "";
 }
 
 function drawLine(line: HTMLElement, cards: HTMLElement[], names: string[]): void {
@@ -229,4 +247,20 @@ function restore(panel: HTMLElement): void {
     span.replaceWith(span.ownerDocument.createTextNode(span.textContent ?? ""));
     parent?.normalize();
   });
+}
+
+/** Obsidian's metadata cache, read through the public MetadataCache API. */
+export function metadataLinkIndex(app: App): LinkIndex {
+  const { metadataCache } = app;
+  return {
+    sourcesOf: (targetPath) =>
+      Object.entries(metadataCache.resolvedLinks)
+        .filter(([, targets]) => (targets[targetPath] ?? 0) > 0)
+        .map(([source]) => source),
+    linksOf: (path) => {
+      const file = app.vault.getFileByPath(path);
+      return file ? metadataCache.getFileCache(file) : null;
+    },
+    resolve: (link, sourcePath) => metadataCache.getFirstLinkpathDest(getLinkpath(link), sourcePath)?.path ?? null,
+  };
 }

@@ -5,7 +5,7 @@ import { PaginationController } from "./pagination/controller";
 import { PropertiesSidebar } from "./properties/propertiesSidebar";
 import { normalizeSettings, type PagewiseSettings } from "./settings";
 import { PagewiseSettingTab, type SettingsHost } from "./settingsTab";
-import { MentionLinks } from "./backlinks/mentionLinks";
+import { MentionLinks, metadataLinkIndex } from "./backlinks/mentionLinks";
 import { executeCommand, findCommand, listCommands, openSettingTab, type PaletteCommand } from "./obsidianInternals";
 import { NoteToolbar } from "./toolbar/noteToolbar";
 import { PATTERN_ATTRIBUTE } from "./appearance/backgrounds";
@@ -21,7 +21,7 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
   private controller!: PaginationController;
   private toolbar!: NoteToolbar;
   private propertiesSidebar!: PropertiesSidebar;
-  private readonly mentionLinks = new MentionLinks();
+  private readonly mentionLinks = new MentionLinks(metadataLinkIndex(this.app));
   private readonly registry = new ToolbarRegistry();
   /** The toolbar API other plugins use: `app.plugins.getPlugin("pagewise").api`. See TOOLBAR-API in Vibes. */
   readonly api: PagewiseApi = createApi(this.registry, () => this.toolbar.refreshState());
@@ -176,7 +176,7 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
     });
     this.propertiesSidebar.syncInspectors(paginated);
     this.toolbar.refreshState();
-    this.mentionLinks.sync(paginatedViews.map((view) => view.containerEl));
+    this.mentionLinks.sync(paginatedViews.map((view) => ({ root: view.containerEl, path: view.file?.path ?? null })));
   }
 
 }
