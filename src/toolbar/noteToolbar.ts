@@ -1,5 +1,6 @@
 import { MarkdownView, setIcon, setTooltip, type App, type Menu } from "obsidian";
 import type { BackgroundId } from "../appearance/backgrounds";
+import type { ReadingDepth } from "../integrations/semanticZoom";
 import { executeCommand } from "../obsidianInternals";
 import { markdownViews } from "../workspace";
 import { fillBlocksMenu, fillHeadingMenu } from "./formatMenus";
@@ -13,6 +14,7 @@ const TOOLBAR_CLASS = "pagewise-toolbar";
 const HOST_CLASS = "pagewise-has-toolbar";
 const OVERFLOWED_CLASS = "is-overflowed";
 const EMPTY_CLASS = "is-empty";
+const UNAVAILABLE_CLASS = "is-unavailable";
 
 /** What the toolbar asks of its owner beyond formatting. */
 export interface ToolbarActions {
@@ -23,6 +25,8 @@ export interface ToolbarActions {
   /** The canvas background, shared by every paginated pane. */
   background(): BackgroundId;
   setBackground(id: BackgroundId): void;
+  /** Semantic Zoom's reading depths, or null while it is not installed and ready. */
+  readingDepth(): ReadingDepth | null;
 }
 
 /**
@@ -94,6 +98,7 @@ class PaneToolbar {
   private readonly groupsEl: HTMLElement;
   private readonly moreButton: HTMLElement;
   private readonly propertiesButton: HTMLElement;
+  private readonly readingDepthButton: HTMLElement;
   private readonly palette: BackgroundPalette;
   private readonly placed: Placed[] = [];
   private readonly observer: ResizeObserver;
@@ -116,6 +121,8 @@ class PaneToolbar {
     this.el.addEventListener("mousedown", (event) => event.preventDefault());
     this.el.addEventListener("keydown", (event) => this.onKeydown(event));
     this.el.addEventListener("focusin", (event) => this.setTabStop(event.target as HTMLElement));
+    // Backstop for a companion plugin that changed without announcing it.
+    this.el.addEventListener("pointerenter", () => this.refreshState());
 
     this.groupsEl = this.el.createDiv({ cls: "pagewise-toolbar-groups" });
     this.controlGroups().forEach((controls) => {
@@ -136,6 +143,8 @@ class PaneToolbar {
     this.propertiesButton.classList.add("pagewise-toolbar-properties");
     this.propertiesButton.setAttribute("aria-pressed", "false");
     setIcon(this.propertiesButton, resolveIcon(["info"]));
+    this.readingDepthButton = this.menuButton("Reading depth", ["layers", "list-tree"], (menu) => this.fillReadingDepth(menu));
+    this.readingDepthButton.classList.add("pagewise-toolbar-reading-depth", UNAVAILABLE_CLASS);
     const backgroundButton = this.button("Background", () => {
       if (this.palette.isOpen) this.palette.close(false);
       else this.palette.open();
@@ -147,7 +156,7 @@ class PaneToolbar {
       current: () => this.actions.background(),
       choose: (id) => this.actions.setBackground(id),
     });
-    trailing.append(this.moreButton, backgroundButton, this.propertiesButton);
+    trailing.append(this.moreButton, this.readingDepthButton, backgroundButton, this.propertiesButton);
 
     this.attach();
     this.setTabStop(this.placed[0]?.button ?? this.propertiesButton);
@@ -170,6 +179,31 @@ class PaneToolbar {
   refreshState(): void {
     this.propertiesButton.setAttribute("aria-pressed", String(this.actions.propertiesShown(this.view)));
     this.palette.paint();
+    this.readingDepthButton.classList.toggle(UNAVAILABLE_CLASS, !this.readingDepthAvailable());
+    this.ensureTabStop();
+  }
+
+  /** Reading depth shows for a Markdown note while Semantic Zoom is installed and ready. */
+  private readingDepthAvailable(): boolean {
+    return this.view.file?.extension === "md" && this.actions.readingDepth() !== null;
+  }
+
+  /** One entry per depth; each opens the note in a new tab near the cursor, so the pane stays as it is. */
+  private fillReadingDepth(menu: Menu): void {
+    const depth = this.actions.readingDepth();
+    const file = this.view.file;
+    if (!depth || !file) return;
+    const line = this.view.getMode() === "source" ? this.view.editor.getCursor().line : undefined;
+    depth.levels.forEach(({ level, name, hint }) =>
+      addEntry(menu, {
+        title: `${name}: ${hint}`,
+        icon: ["layers"],
+        action: () => {
+          const leaf = this.app.workspace.getLeaf("tab");
+          depth.open(file, level, leaf, line).catch((error: unknown) => console.warn("Pagewise: Semantic Zoom could not open the note", error));
+        },
+      })
+    );
   }
 
   destroy(): void {

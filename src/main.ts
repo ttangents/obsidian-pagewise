@@ -1,9 +1,11 @@
-import { debounce, Plugin } from "obsidian";
+import { debounce, Plugin, type Events } from "obsidian";
 import { PaginationController } from "./pagination/controller";
 import { PropertiesSidebar } from "./properties/propertiesSidebar";
 import { normalizeSettings, type PagewiseSettings } from "./settings";
 import { PagewiseSettingTab, type SettingsHost } from "./settingsTab";
 import { MentionLinks } from "./backlinks/mentionLinks";
+import { readingDepthFrom } from "./integrations/semanticZoom";
+import { getPlugin } from "./obsidianInternals";
 import { NoteToolbar } from "./toolbar/noteToolbar";
 import { PATTERN_ATTRIBUTE } from "./appearance/backgrounds";
 import { markdownViews } from "./workspace";
@@ -35,6 +37,7 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
       propertiesShown: (view) => this.propertiesSidebar.isShownFor(view.file),
       background: () => this.settings.background,
       setBackground: (id) => void this.updateSettings({ background: id }),
+      readingDepth: () => readingDepthFrom(getPlugin(this.app, "semantic-zoom")),
     });
 
     this.addCommand({
@@ -106,6 +109,9 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
       })
     );
     this.registerEvent(workspace.on("css-change", () => this.controller.requestLayout()));
+    // Semantic Zoom announces when its API appears or goes away (enabled, reloaded, disabled), so the
+    // Reading depth button follows it without waiting for the next layout change.
+    this.registerEvent((workspace as Events).on("semantic-zoom:api", () => this.toolbar.refreshState()));
     // Fires when a sidebar opens or closes, which changes what Properties shows.
     this.registerEvent(workspace.on("resize", () => this.syncSettled()));
     this.registerEvent(this.app.vault.on("rename", () => this.syncSettled()));

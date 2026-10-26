@@ -9,11 +9,13 @@ import type { App, MarkdownView, Menu, MenuItem } from "obsidian";
  * - app.hotkeyManager.printHotkeyForCommand: the user's binding for a command (menu hints).
  * - Menu.dom / MenuItem.dom: the rendered elements (submenu anchoring, hint placement).
  * - MarkdownView.metadataEditor.setCollapse: collapse Properties in Live Preview.
+ * - app.plugins.getPlugin: another installed plugin's instance (the Semantic Zoom integration).
  */
 
 interface AppInternals {
   commands?: { executeCommandById?(id: string): boolean };
   hotkeyManager?: { printHotkeyForCommand?(id: string): string };
+  plugins?: { getPlugin?(id: string): unknown };
 }
 
 interface WithDom {
@@ -51,4 +53,9 @@ export function setMetadataCollapsed(view: MarkdownView, collapsed: boolean): bo
   if (typeof editor?.setCollapse !== "function") return false;
   editor.setCollapse(collapsed, false);
   return true;
+}
+
+/** Another community plugin's running instance, or undefined when it is not installed and enabled. */
+export function getPlugin(app: App, id: string): unknown {
+  return (app as unknown as AppInternals).plugins?.getPlugin?.(id) ?? undefined;
 }

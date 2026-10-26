@@ -219,7 +219,8 @@
 
 /* Controls the pane is too narrow for live in the More menu instead. */
 .pagewise-toolbar .pagewise-toolbar-button.is-overflowed,
-.pagewise-toolbar .pagewise-toolbar-group.is-empty {
+.pagewise-toolbar .pagewise-toolbar-group.is-empty,
+.pagewise-toolbar .pagewise-toolbar-button.is-unavailable {
   display: none;
 }
 

@@ -127,6 +127,9 @@ function setMetadataCollapsed(view, collapsed) {
   editor.setCollapse(collapsed, false);
   return true;
 }
+function getPlugin(app, id) {
+  return app.plugins?.getPlugin?.(id) ?? void 0;
+}
 
 // src/properties/propertiesCollapser.ts
 var CONTAINER_SELECTOR = ".metadata-container";
@@ -769,6 +772,24 @@ function restore(panel) {
     span.replaceWith(span.ownerDocument.createTextNode(span.textContent ?? ""));
     parent?.normalize();
   });
+}
+
+// src/integrations/semanticZoom.ts
+function isLevel(value) {
+  const v = value;
+  return !!v && typeof v.level === "number" && typeof v.name === "string" && typeof v.hint === "string";
+}
+function readingDepthFrom(plugin) {
+  const api = plugin?.api;
+  if (!api || api.version !== 1 || api.available !== true || typeof api.open !== "function") return null;
+  if (!Array.isArray(api.levels)) return null;
+  const levels = api.levels.filter(isLevel);
+  if (levels.length === 0) return null;
+  const open = api.open;
+  return {
+    levels,
+    open: (file, level, leaf, line) => open.call(api, file, { level, leaf, line })
+  };
 }
 
 // src/toolbar/noteToolbar.ts
@@ -1447,6 +1468,7 @@ var TOOLBAR_CLASS = "pagewise-toolbar";
 var HOST_CLASS = "pagewise-has-toolbar";
 var OVERFLOWED_CLASS = "is-overflowed";
 var EMPTY_CLASS = "is-empty";
+var UNAVAILABLE_CLASS = "is-unavailable";
 var NoteToolbar = class {
   constructor(app, actions) {
     this.app = app;
@@ -1497,6 +1519,7 @@ var PaneToolbar = class {
     this.el.addEventListener("mousedown", (event) => event.preventDefault());
     this.el.addEventListener("keydown", (event) => this.onKeydown(event));
     this.el.addEventListener("focusin", (event) => this.setTabStop(event.target));
+    this.el.addEventListener("pointerenter", () => this.refreshState());
     this.groupsEl = this.el.createDiv({ cls: "pagewise-toolbar-groups" });
     this.controlGroups().forEach((controls) => {
       const group = this.groupsEl.createDiv({ cls: "pagewise-toolbar-group" });
@@ -1513,6 +1536,8 @@ var PaneToolbar = class {
     this.propertiesButton.classList.add("pagewise-toolbar-properties");
     this.propertiesButton.setAttribute("aria-pressed", "false");
     (0, import_obsidian7.setIcon)(this.propertiesButton, resolveIcon(["info"]));
+    this.readingDepthButton = this.menuButton("Reading depth", ["layers", "list-tree"], (menu) => this.fillReadingDepth(menu));
+    this.readingDepthButton.classList.add("pagewise-toolbar-reading-depth", UNAVAILABLE_CLASS);
     const backgroundButton = this.button("Background", () => {
       if (this.palette.isOpen) this.palette.close(false);
       else this.palette.open();
@@ -1524,7 +1549,7 @@ var PaneToolbar = class {
       current: () => this.actions.background(),
       choose: (id) => this.actions.setBackground(id)
     });
-    trailing.append(this.moreButton, backgroundButton, this.propertiesButton);
+    trailing.append(this.moreButton, this.readingDepthButton, backgroundButton, this.propertiesButton);
     this.attach();
     this.setTabStop(this.placed[0]?.button ?? this.propertiesButton);
     const Observer = doc.defaultView?.ResizeObserver ?? ResizeObserver;
@@ -1542,6 +1567,29 @@ var PaneToolbar = class {
   refreshState() {
     this.propertiesButton.setAttribute("aria-pressed", String(this.actions.propertiesShown(this.view)));
     this.palette.paint();
+    this.readingDepthButton.classList.toggle(UNAVAILABLE_CLASS, !this.readingDepthAvailable());
+    this.ensureTabStop();
+  }
+  /** Reading depth shows for a Markdown note while Semantic Zoom is installed and ready. */
+  readingDepthAvailable() {
+    return this.view.file?.extension === "md" && this.actions.readingDepth() !== null;
+  }
+  /** One entry per depth; each opens the note in a new tab near the cursor, so the pane stays as it is. */
+  fillReadingDepth(menu) {
+    const depth = this.actions.readingDepth();
+    const file = this.view.file;
+    if (!depth || !file) return;
+    const line = this.view.getMode() === "source" ? this.view.editor.getCursor().line : void 0;
+    depth.levels.forEach(
+      ({ level, name, hint }) => addEntry(menu, {
+        title: `${name}: ${hint}`,
+        icon: ["layers"],
+        action: () => {
+          const leaf = this.app.workspace.getLeaf("tab");
+          depth.open(file, level, leaf, line).catch((error) => console.warn("Pagewise: Semantic Zoom could not open the note", error));
+        }
+      })
+    );
   }
   destroy() {
     this.observer.disconnect();
@@ -1758,7 +1806,8 @@ var PagewisePlugin = class extends import_obsidian8.Plugin {
       toggleProperties: (view) => this.propertiesSidebar.toggle(view.file),
       propertiesShown: (view) => this.propertiesSidebar.isShownFor(view.file),
       background: () => this.settings.background,
-      setBackground: (id) => void this.updateSettings({ background: id })
+      setBackground: (id) => void this.updateSettings({ background: id }),
+      readingDepth: () => readingDepthFrom(getPlugin(this.app, "semantic-zoom"))
     });
     this.addCommand({
       id: "toggle-paginated-view",
@@ -1823,6 +1872,7 @@ var PagewisePlugin = class extends import_obsidian8.Plugin {
       })
     );
     this.registerEvent(workspace.on("css-change", () => this.controller.requestLayout()));
+    this.registerEvent(workspace.on("semantic-zoom:api", () => this.toolbar.refreshState()));
     this.registerEvent(workspace.on("resize", () => this.syncSettled()));
     this.registerEvent(this.app.vault.on("rename", () => this.syncSettled()));
     this.registerDomEvent(window, "resize", () => this.controller.requestLayout());
