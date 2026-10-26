@@ -1,9 +1,10 @@
 import type { MarkdownView } from "obsidian";
 import { setMetadataCollapsed } from "../obsidianInternals";
+import { DOM } from "../obsidianDom";
 
-const CONTAINER_SELECTOR = ".metadata-container";
-const COLLAPSED_CLASS = "is-collapsed";
-const INDICATOR_SELECTOR = ".metadata-properties-heading .collapse-indicator";
+const CONTAINER_SELECTOR = DOM.metadataContainer;
+const COLLAPSED_CLASS = DOM.collapsedClass;
+const INDICATOR_SELECTOR = DOM.metadataIndicator;
 
 /**
  * Collapses the in-note Properties panel while pagination is on, and restores
@@ -71,7 +72,7 @@ function findContainers(view: MarkdownView): HTMLElement[] {
  * owner, so there the class toggle on container and indicator is the whole truth.
  */
 function setCollapsed(view: MarkdownView, container: HTMLElement, collapsed: boolean): void {
-  if (container.closest(".markdown-source-view") && setMetadataCollapsed(view, collapsed)) return;
+  if (container.closest(DOM.sourceView) && setMetadataCollapsed(view, collapsed)) return;
   container.classList.toggle(COLLAPSED_CLASS, collapsed);
   container.querySelector(INDICATOR_SELECTOR)?.classList.toggle(COLLAPSED_CLASS, collapsed);
 }

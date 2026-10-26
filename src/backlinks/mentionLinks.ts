@@ -1,8 +1,9 @@
 import { getLinkpath, type App } from "obsidian";
 import { Style, inlineStyles } from "./inlineMarkdown";
 import { propertyOnlyNames, type LinkIndex } from "./propertyLinks";
+import { DOM } from "../obsidianDom";
 
-const MATCH_SELECTOR = ".search-result-file-match";
+const MATCH_SELECTOR = DOM.resultMatch;
 /** Every wrapper Pagewise adds carries this class, plus one class per style. */
 const WRAP_CLASS = "pagewise-md";
 const STYLE_CLASSES: readonly [number, string][] = [
@@ -15,7 +16,7 @@ const STYLE_CLASSES: readonly [number, string][] = [
   [Style.CODE, "pagewise-md-code"],
 ];
 /** The "more context" controls Obsidian puts inside each excerpt. */
-const SKIP_SELECTOR = ".search-result-hover-button";
+const SKIP_SELECTOR = DOM.resultHoverButton;
 /** A card whose only mentions are in the source note's properties; styles.css hides it. */
 const PROPERTY_ONLY_CLASS = "pagewise-mention-property-only";
 /** The compact line that lists those notes instead. */
@@ -53,7 +54,7 @@ export class MentionLinks {
     const current = new Map<HTMLElement, string>();
     panes.forEach(({ root, path }) => {
       if (path === null) return;
-      root.querySelectorAll<HTMLElement>(".embedded-backlinks").forEach((panel) => current.set(panel, path));
+      root.querySelectorAll<HTMLElement>(DOM.embeddedBacklinks).forEach((panel) => current.set(panel, path));
     });
     this.watched.forEach((observer, panel) => {
       if (current.has(panel) && panel.isConnected) return;
@@ -187,10 +188,10 @@ function textNodes(excerpt: HTMLElement): Text[] {
  * the panel's second result list, are text matches and stay as they are.
  */
 function gatherPropertyOnly(panel: HTMLElement, propertyOnly: ReadonlySet<string>): void {
-  const container = panel.querySelector<HTMLElement>(".search-result-container");
+  const container = panel.querySelector<HTMLElement>(DOM.resultList);
   if (!container) return;
   const cards: HTMLElement[] = [];
-  container.querySelectorAll<HTMLElement>(".search-result").forEach((card) => {
+  container.querySelectorAll<HTMLElement>(DOM.resultCard).forEach((card) => {
     const hide = propertyOnly.has(cardName(card));
     card.classList.toggle(PROPERTY_ONLY_CLASS, hide);
     if (hide) cards.push(card);
@@ -213,7 +214,7 @@ function gatherPropertyOnly(panel: HTMLElement, propertyOnly: ReadonlySet<string
 
 /** The note name a result card shows in its title. */
 function cardName(card: HTMLElement): string {
-  return card.querySelector(".search-result-file-title .tree-item-inner")?.textContent ?? "";
+  return card.querySelector(DOM.resultTitleText)?.textContent ?? "";
 }
 
 function drawLine(line: HTMLElement, cards: HTMLElement[], names: string[]): void {
@@ -223,7 +224,7 @@ function drawLine(line: HTMLElement, cards: HTMLElement[], names: string[]): voi
   cards.forEach((card, index) => {
     const name = line.createSpan({ cls: "pagewise-also-linked-note", text: names[index], attr: { role: "link", tabindex: "0" } });
     const open = (event: MouseEvent | KeyboardEvent) => {
-      const title = card.querySelector<HTMLElement>(".search-result-file-title");
+      const title = card.querySelector<HTMLElement>(DOM.resultTitle);
       title?.dispatchEvent(
         new MouseEvent("click", { bubbles: true, cancelable: true, metaKey: event.metaKey, ctrlKey: event.ctrlKey, shiftKey: event.shiftKey, altKey: event.altKey })
       );

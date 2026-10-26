@@ -1,9 +1,10 @@
 import type { App, MarkdownView, Menu, MenuItem } from "obsidian";
 
 /**
- * Every undocumented Obsidian surface Pagewise touches, in one place. Each accessor
+ * Every undocumented Obsidian method and field Pagewise touches, in one place; the
+ * DOM structure and view types it relies on are listed in obsidianDom.ts. Each accessor
  * is guarded, so an Obsidian update that removes one degrades a feature instead of
- * throwing. When an update breaks something, this file is the list to audit.
+ * throwing. When an update breaks something, these two files are the list to audit.
  *
  * - app.commands.executeCommandById: run a built-in command (formatting buttons).
  * - app.hotkeyManager.printHotkeyForCommand: the user's binding for a command (menu hints).

@@ -4,10 +4,10 @@ import { Paginator } from "./paginator";
 import { pageSizeById, resolveMetrics, type PageMetrics } from "./pageSizes";
 import type { PagewiseSettings } from "../settings";
 import { markdownViews } from "../workspace";
+import { DOM } from "../obsidianDom";
 
 const ACTIVE_CLASS = "pagewise-active";
 const HIDE_PROPS_CLASS = "pagewise-props-hidden";
-const SIZER_SELECTOR = ".markdown-preview-sizer";
 const RELAYOUT_DELAY_MS = 120;
 /** Page geometry, set on each paginated pane's container so pop-out windows get it too. */
 const GEOMETRY_VARS = ["--pagewise-page-width", "--pagewise-page-height", "--pagewise-margin", "--pagewise-gap"] as const;
@@ -223,7 +223,7 @@ export class PaginationController {
   }
 
   private sizerOf(view: MarkdownView): HTMLElement | null {
-    return view.previewMode.containerEl.querySelector<HTMLElement>(SIZER_SELECTOR);
+    return view.previewMode.containerEl.querySelector<HTMLElement>(DOM.previewSizer);
   }
 }
 

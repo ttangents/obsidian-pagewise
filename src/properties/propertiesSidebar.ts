@@ -1,6 +1,7 @@
 import { FileView, type App, type TFile, type WorkspaceLeaf } from "obsidian";
+import { DOM } from "../obsidianDom";
 
-const PROPERTIES_VIEW_TYPE = "file-properties";
+const PROPERTIES_VIEW_TYPE = DOM.propertiesViewType;
 const INSPECTOR_CLASS = "pagewise-inspector";
 const HEADER_CLASS = "pagewise-inspector-header";
 

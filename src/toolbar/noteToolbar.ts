@@ -3,6 +3,7 @@ import type { BackgroundId } from "../appearance/backgrounds";
 import { menuIsEmpty } from "../obsidianInternals";
 import type { CommandButton } from "../settings";
 import { markdownViews } from "../workspace";
+import { DOM } from "../obsidianDom";
 import { editingGroups, TRAILING_CONTROLS, type ControlMenu } from "./controls";
 import { fillBlocksMenu, fillHeadingMenu } from "./formatMenus";
 import { registerCustomIcons, resolveIcon, type IconChoice } from "./icons";
@@ -231,7 +232,7 @@ class PaneToolbar {
     // Switching between editing and Reading view changes which controls show.
     const Mutations = doc.defaultView?.MutationObserver ?? MutationObserver;
     this.modeObserver = new Mutations(() => this.fit());
-    this.modeObserver.observe(view.containerEl, { attributes: true, attributeFilter: ["data-mode"] });
+    this.modeObserver.observe(view.containerEl, { attributes: true, attributeFilter: [DOM.viewModeAttribute] });
   }
 
   /** Places the bar between the view header and the content; idempotent. */
@@ -401,7 +402,7 @@ class PaneToolbar {
     // the action moved on: opened a modal or menu, or made another pane active.
     this.el.win.setTimeout(() => {
       if (!this.el.isConnected || this.app.workspace.getActiveViewOfType(MarkdownView) !== this.view) return;
-      if (this.el.ownerDocument.activeElement?.closest(".modal-container, .prompt, .menu")) return;
+      if (this.el.ownerDocument.activeElement?.closest(DOM.focusOwners)) return;
       if (keyboard || !this.editorHasFocus()) this.focusNote();
     }, 0);
   }
@@ -447,7 +448,7 @@ class PaneToolbar {
   private restoreFocus(button: HTMLElement, keyboard: boolean): void {
     if (this.openMenu || !this.el.isConnected) return;
     const active = this.el.ownerDocument.activeElement;
-    if (active?.closest(".modal-container, .prompt, .menu")) return;
+    if (active?.closest(DOM.focusOwners)) return;
     if (keyboard) button.focus();
     else if (!this.editorHasFocus()) this.focusNote();
   }

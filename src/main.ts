@@ -13,6 +13,7 @@ import { BUILT_IN_CONTROLS } from "./toolbar/controls";
 import { PropertiesCollapser } from "./properties/propertiesCollapser";
 import { PATTERN_ATTRIBUTE } from "./appearance/backgrounds";
 import { markdownViews } from "./workspace";
+import { DOM } from "./obsidianDom";
 
 /**
  * Composition root: builds the components, connects them to Obsidian's events, and
@@ -113,7 +114,7 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
     this.registerMarkdownPostProcessor((el) => {
       // PDF export renders the note into a .print container in a hidden window;
       // those renders have nothing for Pagewise to lay out.
-      if (el.closest(".print")) return;
+      if (el.closest(DOM.printContainer)) return;
       this.controller.requestLayout();
     });
     this.registerEvent(

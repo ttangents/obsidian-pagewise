@@ -1,10 +1,9 @@
 import { layoutBlocks, planLayout } from "./layoutEngine";
 import type { PageMetrics } from "./pageSizes";
+import { DOM } from "../obsidianDom";
 
 const BREAK_CLASS = "pagewise-break";
 const TAIL_CLASS = "pagewise-tail";
-/** Reading view's placeholder for the sections it has not rendered. */
-const PUSHER_SELECTOR = ".markdown-preview-pusher";
 
 /**
  * Applies a layout plan to one preview sizer by inserting spacer elements
@@ -37,7 +36,7 @@ export class Paginator {
     const { indexes, blocks } = layoutBlocks(
       children.map((el) => {
         const rect = el.getBoundingClientRect();
-        return { top: rect.top, height: rect.height, placeholder: el.matches(PUSHER_SELECTOR) };
+        return { top: rect.top, height: rect.height, placeholder: el.matches(DOM.previewPusher) };
       }),
       contentTop
     );
