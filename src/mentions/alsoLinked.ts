@@ -2,7 +2,7 @@ import { addFoldToggle, onKeys, shownWhenFolded } from "./fold";
 import { addSection } from "./section";
 
 /** How many notes the line shows before it folds the rest behind "N more". */
-export const SHOWN_PROPERTY_LINKS = 5;
+const SHOWN_PROPERTY_LINKS = 5;
 
 /** One note in the line: the name it shows, and how to open it. */
 export interface AlsoLinkedNote {

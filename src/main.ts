@@ -6,7 +6,7 @@ import { PaginationController } from "./pagination/controller";
 import { PropertiesSidebar } from "./properties/propertiesSidebar";
 import { normalizeSettings, type PagewiseSettings } from "./settings";
 import { PagewiseSettingTab, type SettingsHost } from "./settingsTab";
-import { MentionFooters } from "./mentions/mentionFooters";
+import { MentionFooters, obsidianLinkIndex } from "./mentions/mentionFooters";
 import { HOVER_SOURCE } from "./mentions/mentionFooter";
 import { executeCommand, findCommand, hotkeyFor, listCommands, openSettingTab, type PaletteCommand } from "./obsidianInternals";
 import { NoteToolbar } from "./toolbar/noteToolbar";
@@ -26,7 +26,7 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
   private controller!: PaginationController;
   private toolbar!: NoteToolbar;
   private propertiesSidebar!: PropertiesSidebar;
-  private readonly mentionFooters = new MentionFooters(this.app);
+  private readonly mentionFooters = new MentionFooters(this.app, obsidianLinkIndex(this.app));
   private readonly registry = new ToolbarRegistry();
   /**
    * The toolbar API. Other plugins receive it with the `pagewise:ready` workspace

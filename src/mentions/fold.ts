@@ -20,7 +20,7 @@ export interface FoldOptions {
  * fewer"). It acts like a button for the mouse, Enter and Space, and reports its
  * state to screen readers with aria-expanded.
  */
-export function addFoldToggle(parent: HTMLElement, options: FoldOptions): HTMLElement {
+export function addFoldToggle(parent: HTMLElement, options: FoldOptions): void {
   let unfolded = options.unfolded;
   const toggle = parent.createSpan({ cls: "pagewise-fold-toggle", attr: { role: "button", tabindex: "0" } });
   const render = () => {
@@ -35,7 +35,6 @@ export function addFoldToggle(parent: HTMLElement, options: FoldOptions): HTMLEl
   toggle.addEventListener("click", flip);
   onKeys(toggle, ["Enter", " "], flip);
   render();
-  return toggle;
 }
 
 /** Runs `action` when one of `keys` is pressed on `el`, as a native control would. */

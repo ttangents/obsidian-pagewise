@@ -21,7 +21,7 @@ export class MentionFooters {
 
   constructor(
     private readonly app: App,
-    private readonly index: LinkIndex = obsidianLinkIndex(app)
+    private readonly index: LinkIndex
   ) {}
 
   /** Adds footers to these panes, moves them when a pane changes note, and removes every other one. */

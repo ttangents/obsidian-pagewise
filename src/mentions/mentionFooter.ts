@@ -7,7 +7,7 @@ import { collectMentions, passageMarkdown, type Citation, type LinkIndex, type P
 /** The id Pagewise registers with Page preview for links in its footer. */
 export const HOVER_SOURCE = "pagewise";
 /** How many cards the footer shows before it folds the rest behind "N more notes". */
-export const SHOWN_CITATIONS = 20;
+const SHOWN_CITATIONS = 20;
 
 /** A citing note with the Markdown of each passage, ready to draw. */
 interface Card {
