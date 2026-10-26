@@ -107,12 +107,15 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
     });
     this.registerEvent(
       workspace.on("file-open", () => {
-        this.controller.noteOpened();
+        this.controller.reconcile();
         this.syncToolbar();
       })
     );
     this.registerEvent(
       workspace.on("layout-change", () => {
+        // A pane can change its note without becoming active (another plugin opening
+        // a file in it), and that shows up as a layout change.
+        this.controller.reconcile();
         this.controller.requestLayout();
         this.syncToolbar();
       })

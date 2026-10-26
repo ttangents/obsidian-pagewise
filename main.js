@@ -151,6 +151,16 @@ function noop() {
 // src/pagination/controller.ts
 var import_obsidian2 = require("obsidian");
 
+// src/pagination/noteScope.ts
+function noteAction(scope, globalEnabled, paginated, noteChanged) {
+  if (scope === "global") {
+    if (!globalEnabled) return paginated ? "deactivate" : "keep";
+    if (!paginated) return "activate";
+    return noteChanged ? "relayout" : "keep";
+  }
+  return paginated && noteChanged ? "deactivate" : "keep";
+}
+
 // src/pagination/layoutEngine.ts
 function planLayout({ blocks, contentHeight, breakHeight }) {
   const breaksBefore = new Array(blocks.length).fill(0);
@@ -377,6 +387,8 @@ var PaginationController = class {
     this.app = app;
     this.settings = settings;
     this.active = /* @__PURE__ */ new Set();
+    /** The note each paginated pane showed when it was paginated or last laid out for a new note. */
+    this.notes = /* @__PURE__ */ new Map();
     this.paginators = /* @__PURE__ */ new WeakMap();
     this.observers = /* @__PURE__ */ new Map();
     this.properties = new PropertiesCollapser();
@@ -405,26 +417,32 @@ var PaginationController = class {
     this.requestLayout();
   }
   /**
-   * Called on file-open. In note scope pagination is per note, so a pane showing a new
-   * note resets; in global scope a newly shown note joins the everywhere-on state.
+   * Brings every Markdown pane in line with the toggle scope after notes open, close
+   * or change (file-open and layout-change). Each pane is judged by its own note,
+   * never by which pane happens to be active, so a tab that another plugin or the
+   * user opens beside a paginated note leaves that note paginated.
    */
-  noteOpened() {
-    const view = this.app.workspace.getActiveViewOfType(import_obsidian2.MarkdownView);
-    if (!view) return;
-    if (this.settings.scope === "global") {
-      if (!this.settings.globalEnabled) {
-        this.deactivate(view);
-        return;
+  reconcile() {
+    this.pruneClosedViews();
+    markdownViews(this.app).forEach((view) => {
+      const paginated = this.active.has(view);
+      const noteChanged = paginated && this.notes.get(view) !== view.file;
+      switch (noteAction(this.settings.scope, this.settings.globalEnabled, paginated, noteChanged)) {
+        case "activate":
+          this.activate(view);
+          break;
+        case "deactivate":
+          this.deactivate(view);
+          break;
+        case "relayout":
+          this.notes.set(view, view.file);
+          this.properties.forget([view]);
+          this.requestLayout();
+          break;
+        case "keep":
+          break;
       }
-      if (this.active.has(view)) {
-        this.properties.forget([view]);
-        this.requestLayout();
-        return;
-      }
-      this.activate(view);
-      return;
-    }
-    if (this.active.has(view)) this.deactivate(view);
+    });
   }
   /** True while the given pane is showing the paginated view. */
   isPaginated(view) {
@@ -448,12 +466,14 @@ var PaginationController = class {
   activate(view) {
     if (this.active.has(view)) return;
     this.active.add(view);
+    this.notes.set(view, view.file);
     view.containerEl.classList.add(ACTIVE_CLASS);
     this.applyPropertiesMode(view);
     this.layoutActiveViews();
   }
   deactivate(view) {
     if (!this.active.delete(view)) return;
+    this.notes.delete(view);
     view.containerEl.classList.remove(ACTIVE_CLASS, HIDE_PROPS_CLASS);
     this.properties.restore([view]);
     const sizer = this.sizerOf(view);
@@ -512,7 +532,9 @@ var PaginationController = class {
   /** A closed pane leaves a detached container; drop its state so the sets cannot grow without bound. */
   pruneClosedViews() {
     this.active.forEach((view) => {
-      if (!view.containerEl.isConnected) this.active.delete(view);
+      if (view.containerEl.isConnected) return;
+      this.active.delete(view);
+      this.notes.delete(view);
     });
     this.observers.forEach((observer, sizer) => {
       if (sizer.isConnected) return;
@@ -2372,12 +2394,13 @@ var PagewisePlugin = class extends import_obsidian8.Plugin {
     });
     this.registerEvent(
       workspace.on("file-open", () => {
-        this.controller.noteOpened();
+        this.controller.reconcile();
         this.syncToolbar();
       })
     );
     this.registerEvent(
       workspace.on("layout-change", () => {
+        this.controller.reconcile();
         this.controller.requestLayout();
         this.syncToolbar();
       })

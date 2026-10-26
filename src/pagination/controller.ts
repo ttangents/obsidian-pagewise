@@ -1,4 +1,5 @@
-import { App, MarkdownView, Notice, debounce, type Debouncer } from "obsidian";
+import { App, MarkdownView, Notice, debounce, type Debouncer, type TFile } from "obsidian";
+import { noteAction } from "./noteScope";
 import { Paginator } from "./paginator";
 import { PropertiesCollapser } from "../properties/propertiesCollapser";
 import { pageSizeById, resolveMetrics, type PageMetrics } from "./pageSizes";
@@ -19,6 +20,8 @@ const GEOMETRY_VARS = ["--pagewise-page-width", "--pagewise-page-height", "--pag
  */
 export class PaginationController {
   private readonly active = new Set<MarkdownView>();
+  /** The note each paginated pane showed when it was paginated or last laid out for a new note. */
+  private readonly notes = new Map<MarkdownView, TFile | null>();
   private readonly paginators = new WeakMap<HTMLElement, Paginator>();
   private readonly observers = new Map<HTMLElement, ResizeObserver>();
   private readonly properties = new PropertiesCollapser();
@@ -57,28 +60,34 @@ export class PaginationController {
   }
 
   /**
-   * Called on file-open. In note scope pagination is per note, so a pane showing a new
-   * note resets; in global scope a newly shown note joins the everywhere-on state.
+   * Brings every Markdown pane in line with the toggle scope after notes open, close
+   * or change (file-open and layout-change). Each pane is judged by its own note,
+   * never by which pane happens to be active, so a tab that another plugin or the
+   * user opens beside a paginated note leaves that note paginated.
    */
-  noteOpened(): void {
-    const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-    if (!view) return;
-    if (this.settings.scope === "global") {
-      if (!this.settings.globalEnabled) {
-        this.deactivate(view);
-        return;
+  reconcile(): void {
+    this.pruneClosedViews();
+    markdownViews(this.app).forEach((view) => {
+      const paginated = this.active.has(view);
+      const noteChanged = paginated && this.notes.get(view) !== view.file;
+      switch (noteAction(this.settings.scope, this.settings.globalEnabled, paginated, noteChanged)) {
+        case "activate":
+          this.activate(view);
+          break;
+        case "deactivate":
+          this.deactivate(view);
+          break;
+        case "relayout":
+          // Same pane, new note: Obsidian reuses the Properties element, so let the
+          // collapser treat it as unseen, then lay the new note out.
+          this.notes.set(view, view.file);
+          this.properties.forget([view]);
+          this.requestLayout();
+          break;
+        case "keep":
+          break;
       }
-      if (this.active.has(view)) {
-        // Same pane, new note: Obsidian reuses the Properties element, so let the
-        // collapser treat it as unseen, then lay the new note out.
-        this.properties.forget([view]);
-        this.requestLayout();
-        return;
-      }
-      this.activate(view);
-      return;
-    }
-    if (this.active.has(view)) this.deactivate(view);
+    });
   }
 
   /** True while the given pane is showing the paginated view. */
@@ -107,6 +116,7 @@ export class PaginationController {
   private activate(view: MarkdownView): void {
     if (this.active.has(view)) return;
     this.active.add(view);
+    this.notes.set(view, view.file);
     view.containerEl.classList.add(ACTIVE_CLASS);
     this.applyPropertiesMode(view);
     this.layoutActiveViews();
@@ -114,6 +124,7 @@ export class PaginationController {
 
   private deactivate(view: MarkdownView): void {
     if (!this.active.delete(view)) return;
+    this.notes.delete(view);
     view.containerEl.classList.remove(ACTIVE_CLASS, HIDE_PROPS_CLASS);
     this.properties.restore([view]);
     const sizer = this.sizerOf(view);
@@ -178,7 +189,9 @@ export class PaginationController {
   /** A closed pane leaves a detached container; drop its state so the sets cannot grow without bound. */
   private pruneClosedViews(): void {
     this.active.forEach((view) => {
-      if (!view.containerEl.isConnected) this.active.delete(view);
+      if (view.containerEl.isConnected) return;
+      this.active.delete(view);
+      this.notes.delete(view);
     });
     this.observers.forEach((observer, sizer) => {
       if (sizer.isConnected) return;
