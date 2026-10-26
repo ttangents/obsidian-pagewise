@@ -9,6 +9,8 @@ import { PagewiseSettingTab, type SettingsHost } from "./settingsTab";
 import { MentionLinks, metadataLinkIndex } from "./backlinks/mentionLinks";
 import { executeCommand, findCommand, hotkeyFor, listCommands, openSettingTab, type PaletteCommand } from "./obsidianInternals";
 import { NoteToolbar } from "./toolbar/noteToolbar";
+import { BUILT_IN_CONTROLS } from "./toolbar/controls";
+import { PropertiesCollapser } from "./properties/propertiesCollapser";
 import { PATTERN_ATTRIBUTE } from "./appearance/backgrounds";
 import { markdownViews } from "./workspace";
 
@@ -42,7 +44,7 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
 
   async onload(): Promise<void> {
     this.settings = normalizeSettings(await this.loadData());
-    this.controller = new PaginationController(this.app, this.settings);
+    this.controller = new PaginationController(this.app, this.settings, new PropertiesCollapser());
     this.propertiesSidebar = new PropertiesSidebar(this.app);
     this.toolbar = new NoteToolbar(this.app, {
       toggleProperties: (view) => this.propertiesSidebar.toggle(view.file),
@@ -154,6 +156,11 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
   /** The command palette name of a command, or null while no enabled plugin provides it. */
   commandName(commandId: string): string | null {
     return findCommand(this.app, commandId)?.name ?? null;
+  }
+
+  /** The toolbar's built-in controls, for the settings tab. */
+  builtInControls(): readonly { id: string; label: string }[] {
+    return BUILT_IN_CONTROLS;
   }
 
   /** Items other plugins added to the toolbar, for the settings tab. */

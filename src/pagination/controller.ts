@@ -1,7 +1,6 @@
 import { App, MarkdownView, Notice, debounce, type Debouncer, type TFile } from "obsidian";
 import { noteAction } from "./noteScope";
 import { Paginator } from "./paginator";
-import { PropertiesCollapser } from "../properties/propertiesCollapser";
 import { pageSizeById, resolveMetrics, type PageMetrics } from "./pageSizes";
 import type { PagewiseSettings } from "../settings";
 import { markdownViews } from "../workspace";
@@ -12,6 +11,16 @@ const SIZER_SELECTOR = ".markdown-preview-sizer";
 const RELAYOUT_DELAY_MS = 120;
 /** Page geometry, set on each paginated pane's container so pop-out windows get it too. */
 const GEOMETRY_VARS = ["--pagewise-page-width", "--pagewise-page-height", "--pagewise-margin", "--pagewise-gap"] as const;
+
+/** Folds the in-note Properties panel while a pane is paginated; main.ts supplies it (PropertiesCollapser). */
+export interface PropertiesFolder {
+  /** Folds every panel not yet seen. @returns true when a panel changed state. */
+  collapse(views: MarkdownView[]): boolean;
+  /** Forgets the panels of these panes, without touching their state. */
+  forget(views: MarkdownView[]): void;
+  /** Unfolds the panels it folded in these panes. */
+  restore(views: MarkdownView[]): void;
+}
 
 /**
  * Owns which panes are paginated and keeps their layout current. All entry points
@@ -24,7 +33,6 @@ export class PaginationController {
   private readonly notes = new Map<MarkdownView, TFile | null>();
   private readonly paginators = new WeakMap<HTMLElement, Paginator>();
   private readonly observers = new Map<HTMLElement, ResizeObserver>();
-  private readonly properties = new PropertiesCollapser();
   private readonly relayout: Debouncer<[], void>;
   private metrics: PageMetrics;
   /** A layout pass waiting for the next frame, with the window that frame belongs to. */
@@ -32,7 +40,8 @@ export class PaginationController {
 
   constructor(
     private readonly app: App,
-    private settings: PagewiseSettings
+    private settings: PagewiseSettings,
+    private readonly properties: PropertiesFolder
   ) {
     this.metrics = metricsFrom(settings);
     this.relayout = debounce(() => this.layoutActiveViews(), RELAYOUT_DELAY_MS, true);

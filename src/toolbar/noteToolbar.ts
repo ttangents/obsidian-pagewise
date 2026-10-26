@@ -1,22 +1,23 @@
-import { MarkdownView, Menu as ObsidianMenu, setIcon, setTooltip, type App, type Menu } from "obsidian";
+import { MarkdownView, Menu as ObsidianMenu, setIcon, setTooltip, type App, type Editor, type Menu } from "obsidian";
 import type { BackgroundId } from "../appearance/backgrounds";
 import { menuIsEmpty } from "../obsidianInternals";
 import type { CommandButton } from "../settings";
 import { markdownViews } from "../workspace";
+import { editingGroups, TRAILING_CONTROLS, type ControlMenu } from "./controls";
 import { fillBlocksMenu, fillHeadingMenu } from "./formatMenus";
 import { registerCustomIcons, resolveIcon, type IconChoice } from "./icons";
 import { HEADING_LEVELS } from "./markdownActions";
 import { BackgroundPalette } from "./backgroundPalette";
 import { addEntry, createMenu, whenHidden, type CommandRunner } from "./menus";
+import { fitToWidth, OVERFLOWED_CLASS, UNAVAILABLE_CLASS } from "./overflow";
+import { RovingTabStop } from "./rovingFocus";
 import { fillTableMenu } from "./tableMenu";
 import type { PagewiseToolbarContext, PagewiseToolbarItem } from "./extensionApi";
 import type { ToolbarRegistry } from "./extensionRegistry";
 
 const TOOLBAR_CLASS = "pagewise-toolbar";
 const HOST_CLASS = "pagewise-has-toolbar";
-const OVERFLOWED_CLASS = "is-overflowed";
-const EMPTY_CLASS = "is-empty";
-const UNAVAILABLE_CLASS = "is-unavailable";
+const BUTTON_CLASS = "pagewise-toolbar-button";
 
 /** What the toolbar asks of its owner: commands (the only way it runs one), Properties, and the background. */
 export interface ToolbarActions extends CommandRunner {
@@ -35,24 +36,17 @@ export interface ToolbarActions extends CommandRunner {
 
 /** What the user and other plugins put on the toolbar beyond the built-in controls. */
 export interface ToolbarConfig {
-  /** Ids of hidden controls: built-in ones (BUILT_IN_CONTROLS) and extension item ids. */
+  /** Ids of hidden controls: built-in ones (BUILT_IN_CONTROLS in controls.ts) and extension item ids. */
   hidden: ReadonlySet<string>;
   commandButtons: readonly CommandButton[];
 }
 
-/** Every built-in control the user can hide, in toolbar order. */
-export const BUILT_IN_CONTROLS: readonly { id: string; label: string }[] = [
-  { id: "headings", label: "Headings" },
-  { id: "lists", label: "Lists and blocks" },
-  { id: "bold", label: "Bold" },
-  { id: "italic", label: "Italic" },
-  { id: "highlight", label: "Highlight" },
-  { id: "link", label: "Insert link" },
-  { id: "table", label: "Table" },
-  { id: "image", label: "Insert image" },
-  { id: "background", label: "Background" },
-  { id: "properties", label: "Properties" },
-];
+/** The contents of the editing controls' menus. */
+const MENUS: Record<ControlMenu, (menu: Menu, commands: CommandRunner, editor: Editor) => void> = {
+  headings: (menu, _commands, editor) => fillHeadingMenu(menu, editor),
+  blocks: fillBlocksMenu,
+  table: fillTableMenu,
+};
 
 /** The icon a command button or extension item falls back to when its own is missing. */
 const FALLBACK_ICON = "puzzle";
@@ -161,6 +155,7 @@ class PaneToolbar {
   private readonly propertiesButton: HTMLElement;
   private readonly palette: BackgroundPalette;
   private readonly placed: Placed[] = [];
+  private readonly tabStop: RovingTabStop;
   private readonly observer: ResizeObserver;
   private readonly modeObserver: MutationObserver;
   /** The menu this bar has open, if any, and the button it belongs to. */
@@ -178,10 +173,11 @@ class PaneToolbar {
     const doc = view.containerEl.ownerDocument;
     // Created in the pane, then attach() moves it between the view header and the content.
     this.el = view.containerEl.createDiv({ cls: TOOLBAR_CLASS, attr: { role: "toolbar", "aria-label": "Document toolbar" } });
+    this.tabStop = new RovingTabStop(this.el, `.${BUTTON_CLASS}`);
     // A pointer press on the bar must not take focus or the selection from the editor.
     this.el.addEventListener("mousedown", (event) => event.preventDefault());
-    this.el.addEventListener("keydown", (event) => this.onKeydown(event));
-    this.el.addEventListener("focusin", (event) => this.setTabStop(event.target as HTMLElement));
+    this.el.addEventListener("keydown", (event) => this.tabStop.onKeydown(event));
+    this.el.addEventListener("focusin", (event) => this.tabStop.set(event.target));
     // Backstop for another plugin whose state changed without a refreshToolbar call.
     this.el.addEventListener("pointerenter", () => this.refreshState());
     this.el.addEventListener("contextmenu", (event) => this.showCustomizeMenu(event));
@@ -204,31 +200,30 @@ class PaneToolbar {
     const trailing = this.el.createDiv({ cls: "pagewise-toolbar-trailing" });
     this.moreButton = this.menuButton("More tools", ["ellipsis", "more-horizontal"], (menu) => this.fillMore(menu), false);
     this.moreButton.classList.add("pagewise-toolbar-more", OVERFLOWED_CLASS);
-    this.propertiesButton = this.button("Properties", (keyboard) => void this.toggleProperties(keyboard));
-    this.propertiesButton.classList.add("pagewise-toolbar-properties");
+    trailing.append(this.moreButton);
+    const trailingButtons = new Map(
+      TRAILING_CONTROLS.map(({ id, label, icon }) => {
+        const press = id === "properties" ? (keyboard: boolean) => void this.toggleProperties(keyboard) : () => this.togglePalette();
+        const button = this.button(label, press);
+        button.classList.add(`pagewise-toolbar-${id}`);
+        setIcon(button, resolveIcon(icon));
+        if (config.hidden.has(id)) button.detach();
+        else trailing.append(button);
+        return [id, button] as const;
+      })
+    );
+    this.propertiesButton = trailingButtons.get("properties")!;
     this.propertiesButton.setAttribute("aria-pressed", "false");
-    setIcon(this.propertiesButton, resolveIcon(["info"]));
-    const backgroundButton = this.button("Background", () => {
-      if (this.palette.isOpen) this.palette.close(false);
-      else this.palette.open();
-    });
-    backgroundButton.classList.add("pagewise-toolbar-background");
+    const backgroundButton = trailingButtons.get("background")!;
     backgroundButton.setAttribute("aria-haspopup", "dialog");
     backgroundButton.setAttribute("aria-expanded", "false");
-    setIcon(backgroundButton, resolveIcon(["swatch-book", "palette"]));
     this.palette = new BackgroundPalette(this.el, backgroundButton, {
       current: () => this.actions.background(),
       choose: (id) => this.actions.setBackground(id),
     });
-    const trailingControls: [string, HTMLElement][] = [
-      ["background", backgroundButton],
-      ["properties", this.propertiesButton],
-    ];
-    trailing.append(this.moreButton);
-    trailingControls.forEach(([id, button]) => (config.hidden.has(id) ? button.detach() : trailing.append(button)));
 
     this.attach();
-    this.setTabStop(this.placed[0]?.button ?? this.propertiesButton);
+    this.tabStop.set(this.placed[0]?.button ?? this.propertiesButton);
     const Observer = doc.defaultView?.ResizeObserver ?? ResizeObserver;
     // The groups box changes size when the pane resizes.
     this.observer = new Observer(() => this.fit());
@@ -268,6 +263,11 @@ class PaneToolbar {
     });
   }
 
+  private togglePalette(): void {
+    if (this.palette.isOpen) this.palette.close(false);
+    else this.palette.open();
+  }
+
   destroy(): void {
     this.observer.disconnect();
     this.modeObserver.disconnect();
@@ -284,33 +284,21 @@ class PaneToolbar {
    */
   private controlGroups(): { kind: GroupKind; controls: Control[] }[] {
     const { actions, view } = this;
-    const command = (id: string) => () => actions.runCommand(id);
     const commands = this.config.commandButtons;
     const extensions = this.registry.items();
+    const editing = editingGroups().map((group) => ({
+      kind: "editing" as const,
+      controls: group.map(({ id, label, icon, overflowRank, command, menu }): Control => ({
+        id,
+        label,
+        icon,
+        overflowRank,
+        run: command === undefined ? undefined : () => actions.runCommand(command),
+        fill: menu === undefined ? undefined : (target: Menu) => MENUS[menu](target, actions, view.editor),
+      })),
+    }));
     return [
-      {
-        kind: "editing",
-        controls: [
-          { id: "headings", label: "Headings", icon: ["heading"], overflowRank: 6, fill: (menu) => fillHeadingMenu(menu, view.editor) },
-          { id: "lists", label: "Lists and blocks", icon: ["list"], overflowRank: 5, fill: (menu) => fillBlocksMenu(menu, actions, view.editor) },
-        ],
-      },
-      {
-        kind: "editing",
-        controls: [
-          { id: "bold", label: "Bold", icon: ["bold"], overflowRank: 8, run: command("editor:toggle-bold") },
-          { id: "italic", label: "Italic", icon: ["italic"], overflowRank: 7, run: command("editor:toggle-italics") },
-          { id: "highlight", label: "Highlight", icon: ["highlighter", "paintbrush"], overflowRank: 4, run: command("editor:toggle-highlight") },
-        ],
-      },
-      {
-        kind: "editing",
-        controls: [
-          { id: "link", label: "Insert link", icon: ["link-2", "link"], overflowRank: 3, run: command("editor:insert-link") },
-          { id: "table", label: "Table", icon: ["table", "grid-3x3"], overflowRank: 2, fill: (menu) => fillTableMenu(menu, actions, view.editor) },
-          { id: "image", label: "Insert image", icon: ["image-plus", "image"], overflowRank: 1, run: command("editor:attach-file") },
-        ],
-      },
+      ...editing,
       {
         kind: "commands",
         controls: commands.map((button, index) => this.commandControl(button, -1000 + (commands.length - 1 - index))),
@@ -368,32 +356,15 @@ class PaneToolbar {
     menu.showAtMouseEvent(event);
   }
 
-  /**
-   * Moves controls into the More menu until the rest fit on one line. Starts from
-   * everything shown each time, so the result depends only on the available width.
-   */
+  /** Moves controls into More until the rest fit, then keeps the bar reachable by Tab. */
   private fit(): void {
     this.updateControls();
-    this.placed.forEach(({ button, group }) => {
-      button.classList.remove(OVERFLOWED_CLASS);
-      group.classList.remove(EMPTY_CLASS);
-    });
-    // A group whose controls are all unavailable takes no space at all.
-    this.placed.forEach(({ group }) => group.classList.toggle(EMPTY_CLASS, groupIsEmpty(group)));
-    this.moreButton.classList.add(OVERFLOWED_CLASS);
-    const overflowing = () => this.groupsEl.scrollWidth > this.groupsEl.clientWidth + 1;
-    if (this.groupsEl.offsetParent !== null && overflowing()) {
-      this.moreButton.classList.remove(OVERFLOWED_CLASS);
-      const leaving = [...this.placed].sort((a, b) => a.control.overflowRank - b.control.overflowRank);
-      for (const { button, group } of leaving) {
-        if (!overflowing()) break;
-        // A control already hidden (unavailable, or in a group Reading view hides) frees no space.
-        if (button.offsetParent === null) continue;
-        button.classList.add(OVERFLOWED_CLASS);
-        if (groupIsEmpty(group)) group.classList.add(EMPTY_CLASS);
-      }
-    }
-    this.ensureTabStop();
+    fitToWidth(
+      this.groupsEl,
+      this.placed.map(({ control, button, group }) => ({ button, group, overflowRank: control.overflowRank })),
+      this.moreButton
+    );
+    this.tabStop.ensure();
   }
 
   /** Hidden controls in their usual order, one menu section per group. */
@@ -516,7 +487,7 @@ class PaneToolbar {
   /** `keyboard` is true when Enter or Space pressed the button rather than a pointer. */
   private button(label: string, onPress: (keyboard: boolean) => void): HTMLElement {
     // Created in the bar's own window; the caller moves it into its group.
-    const button = this.el.createEl("button", { cls: "pagewise-toolbar-button clickable-icon", attr: { type: "button", "aria-label": label } });
+    const button = this.el.createEl("button", { cls: `${BUTTON_CLASS} clickable-icon`, attr: { type: "button", "aria-label": label } });
     button.tabIndex = -1;
     setTooltip(button, label, { placement: "bottom" });
     button.addEventListener("click", (event) => {
@@ -525,55 +496,10 @@ class PaneToolbar {
     });
     return button;
   }
-
-  // ---------- Keyboard: one tab stop, arrow keys move between visible controls ----------
-
-  private visibleButtons(): HTMLElement[] {
-    return this.toolbarButtons().filter((button) => button.offsetParent !== null);
-  }
-
-  /** The bar's own controls; the palette's swatches keep their own keyboard model. */
-  private toolbarButtons(): HTMLElement[] {
-    return Array.from(this.el.querySelectorAll<HTMLElement>(".pagewise-toolbar-button"));
-  }
-
-  private setTabStop(target: HTMLElement): void {
-    if (!target.instanceOf(HTMLElement) || !target.matches(".pagewise-toolbar-button")) return;
-    this.toolbarButtons().forEach((button) => (button.tabIndex = button === target ? 0 : -1));
-  }
-
-  /** Keeps the bar reachable by Tab when its current tab stop is hidden. */
-  private ensureTabStop(): void {
-    const visible = this.visibleButtons();
-    if (!visible.some((button) => button.tabIndex === 0) && visible.length > 0) this.setTabStop(visible[0]);
-  }
-
-  private onKeydown(event: KeyboardEvent): void {
-    const buttons = this.visibleButtons();
-    const index = buttons.indexOf(event.target as HTMLElement);
-    if (index < 0) return;
-    const next =
-      event.key === "ArrowRight" ? buttons[(index + 1) % buttons.length]
-      : event.key === "ArrowLeft" ? buttons[(index - 1 + buttons.length) % buttons.length]
-      : event.key === "Home" ? buttons[0]
-      : event.key === "End" ? buttons[buttons.length - 1]
-      : null;
-    if (!next) return;
-    event.preventDefault();
-    this.setTabStop(next);
-    next.focus();
-  }
 }
 
 function iconSpan(owner: HTMLElement, className: string, icon: IconChoice): HTMLElement {
   const span = owner.createSpan({ cls: className });
   setIcon(span, resolveIcon(icon));
   return span;
-}
-
-/** True when none of a group's controls currently shows: all unavailable or in More. */
-function groupIsEmpty(group: HTMLElement): boolean {
-  return Array.from(group.children).every(
-    (child) => child.classList.contains(OVERFLOWED_CLASS) || child.classList.contains(UNAVAILABLE_CLASS)
-  );
 }

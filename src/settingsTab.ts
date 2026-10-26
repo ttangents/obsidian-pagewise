@@ -2,7 +2,6 @@ import { App, FuzzySuggestModal, getIcon, PluginSettingTab, setIcon, type Plugin
 import type { PaletteCommand } from "./obsidianInternals";
 import { PAGE_SIZES } from "./pagination/pageSizes";
 import { MAX_COMMAND_BUTTONS, normalizeSettings, type CommandButton, type PagewiseSettings } from "./settings";
-import { BUILT_IN_CONTROLS } from "./toolbar/noteToolbar";
 
 /** What the settings tab needs from its owner: current values, a way to change them, and the toolbar's catalog. */
 export interface SettingsHost {
@@ -11,6 +10,8 @@ export interface SettingsHost {
   listCommands(): PaletteCommand[];
   commandName(commandId: string): string | null;
   extensionItems(): { id: string; label: string }[];
+  /** The toolbar's built-in controls, in bar order. */
+  builtInControls(): readonly { id: string; label: string }[];
 }
 
 /** The icon a new command button gets when its command names none. */
@@ -119,7 +120,7 @@ export class PagewiseSettingTab extends PluginSettingTab {
     return {
       type: "group",
       heading: "Built-in controls",
-      items: BUILT_IN_CONTROLS.map(({ id, label }) => ({
+      items: this.host.builtInControls().map(({ id, label }) => ({
         name: label,
         desc: "Turn off to remove this control from the toolbar.",
         control: { type: "toggle", key: `${SHOWN_PREFIX}${id}` },
