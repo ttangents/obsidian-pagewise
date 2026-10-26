@@ -2,10 +2,12 @@
 /* ---------- Canvas backgrounds ----------
  * The CSS half of BACKGROUNDS in src/appearance/backgrounds.ts. The patterns and
  * their tiles come from Home Cards. Each pattern is a pair of seamless tiles, light
- * and dark, carried on custom properties declared only on paginated panes, so the
- * inline images stay out of every other element's cascade. The toolbar's palette
- * lives inside the pane and inherits them, so a swatch always previews exactly what
- * the canvas will paint. Plain sets no attribute, and no rule here fires.
+ * and dark. The tiles travel in main.js: showPattern() in src/appearance/patternStyle.ts
+ * sets them as --pagewise-pattern-light and --pagewise-pattern-dark on the element
+ * that shows the pattern (a paginated pane or a palette swatch), and the rules here
+ * pick one by theme. The veils are declared on paginated panes; the toolbar's
+ * palette lives inside the pane and inherits them, so a swatch always previews
+ * exactly what the canvas will paint. Plain sets nothing, and no rule here fires.
  *
  * Each tile carries a veil: the share of the canvas colour laid over it. Home Cards
  * calibrates its veils so every pattern carries about the same weight behind cards.
@@ -14,127 +16,97 @@
  */
 
 .workspace-leaf-content[data-type="markdown"].pagewise-active {
-  --pagewise-bg-diamonds: url("@tile:diamonds-light@");
   --pagewise-veil-diamonds: 92%;
-  --pagewise-bg-leaves: url("@tile:leaves-light@");
   --pagewise-veil-leaves: 93%;
-  --pagewise-bg-stitches: url("@tile:stitches-light@");
   --pagewise-veil-stitches: 89%;
-  --pagewise-bg-suns: url("@tile:suns-light@");
   --pagewise-veil-suns: 89%;
-  --pagewise-bg-grid: url("@tile:grid-light@");
   --pagewise-veil-grid: 78%;
-  --pagewise-bg-rain: url("@tile:rain-light@");
   --pagewise-veil-rain: 73%;
-  --pagewise-bg-squares: url("@tile:squares-light@");
   --pagewise-veil-squares: 73%;
-  --pagewise-bg-polka: url("@tile:polka-light@");
   --pagewise-veil-polka: 87%;
-  --pagewise-bg-basket: url("@tile:basket-light@");
   --pagewise-veil-basket: 87%;
-  --pagewise-bg-pebbles: url("@tile:pebbles-light@");
   --pagewise-veil-pebbles: 76%;
-  --pagewise-bg-confetti: url("@tile:confetti-light@");
   --pagewise-veil-confetti: 78%;
-  --pagewise-bg-petals: url("@tile:petals-light@");
   --pagewise-veil-petals: 90%;
-  --pagewise-bg-paws: url("@tile:paws-light@");
   --pagewise-veil-paws: 90%;
 }
 
 .theme-dark .workspace-leaf-content[data-type="markdown"].pagewise-active {
-  --pagewise-bg-diamonds: url("@tile:diamonds-dark@");
   --pagewise-veil-diamonds: 91%;
-  --pagewise-bg-leaves: url("@tile:leaves-dark@");
   --pagewise-veil-leaves: 93%;
-  --pagewise-bg-stitches: url("@tile:stitches-dark@");
   --pagewise-veil-stitches: 94%;
-  --pagewise-bg-suns: url("@tile:suns-dark@");
   --pagewise-veil-suns: 91%;
-  --pagewise-bg-grid: url("@tile:grid-dark@");
   --pagewise-veil-grid: 75%;
-  --pagewise-bg-rain: url("@tile:rain-dark@");
   --pagewise-veil-rain: 70%;
-  --pagewise-bg-squares: url("@tile:squares-dark@");
   --pagewise-veil-squares: 70%;
-  --pagewise-bg-polka: url("@tile:polka-dark@");
   --pagewise-veil-polka: 91%;
-  --pagewise-bg-basket: url("@tile:basket-dark@");
   --pagewise-veil-basket: 93%;
-  --pagewise-bg-pebbles: url("@tile:pebbles-dark@");
   --pagewise-veil-pebbles: 91%;
-  --pagewise-bg-confetti: url("@tile:confetti-dark@");
   --pagewise-veil-confetti: 93%;
-  --pagewise-bg-petals: url("@tile:petals-dark@");
   --pagewise-veil-petals: 93%;
-  --pagewise-bg-paws: url("@tile:paws-dark@");
   --pagewise-veil-paws: 93%;
 }
 
 .pagewise-active[data-pagewise-pattern="diamonds"],
 .pagewise-swatch[data-pagewise-pattern="diamonds"] {
-  --pagewise-tile: var(--pagewise-bg-diamonds);
   --pagewise-veil: var(--pagewise-veil-diamonds);
 }
 .pagewise-active[data-pagewise-pattern="leaves"],
 .pagewise-swatch[data-pagewise-pattern="leaves"] {
-  --pagewise-tile: var(--pagewise-bg-leaves);
   --pagewise-veil: var(--pagewise-veil-leaves);
 }
 .pagewise-active[data-pagewise-pattern="stitches"],
 .pagewise-swatch[data-pagewise-pattern="stitches"] {
-  --pagewise-tile: var(--pagewise-bg-stitches);
   --pagewise-veil: var(--pagewise-veil-stitches);
 }
 .pagewise-active[data-pagewise-pattern="suns"],
 .pagewise-swatch[data-pagewise-pattern="suns"] {
-  --pagewise-tile: var(--pagewise-bg-suns);
   --pagewise-veil: var(--pagewise-veil-suns);
 }
 .pagewise-active[data-pagewise-pattern="grid"],
 .pagewise-swatch[data-pagewise-pattern="grid"] {
-  --pagewise-tile: var(--pagewise-bg-grid);
   --pagewise-veil: var(--pagewise-veil-grid);
 }
 .pagewise-active[data-pagewise-pattern="rain"],
 .pagewise-swatch[data-pagewise-pattern="rain"] {
-  --pagewise-tile: var(--pagewise-bg-rain);
   --pagewise-veil: var(--pagewise-veil-rain);
 }
 .pagewise-active[data-pagewise-pattern="squares"],
 .pagewise-swatch[data-pagewise-pattern="squares"] {
-  --pagewise-tile: var(--pagewise-bg-squares);
   --pagewise-veil: var(--pagewise-veil-squares);
 }
 .pagewise-active[data-pagewise-pattern="polka"],
 .pagewise-swatch[data-pagewise-pattern="polka"] {
-  --pagewise-tile: var(--pagewise-bg-polka);
   --pagewise-veil: var(--pagewise-veil-polka);
 }
 .pagewise-active[data-pagewise-pattern="basket"],
 .pagewise-swatch[data-pagewise-pattern="basket"] {
-  --pagewise-tile: var(--pagewise-bg-basket);
   --pagewise-veil: var(--pagewise-veil-basket);
 }
 .pagewise-active[data-pagewise-pattern="pebbles"],
 .pagewise-swatch[data-pagewise-pattern="pebbles"] {
-  --pagewise-tile: var(--pagewise-bg-pebbles);
   --pagewise-veil: var(--pagewise-veil-pebbles);
 }
 .pagewise-active[data-pagewise-pattern="confetti"],
 .pagewise-swatch[data-pagewise-pattern="confetti"] {
-  --pagewise-tile: var(--pagewise-bg-confetti);
   --pagewise-veil: var(--pagewise-veil-confetti);
 }
 .pagewise-active[data-pagewise-pattern="petals"],
 .pagewise-swatch[data-pagewise-pattern="petals"] {
-  --pagewise-tile: var(--pagewise-bg-petals);
   --pagewise-veil: var(--pagewise-veil-petals);
 }
 .pagewise-active[data-pagewise-pattern="paws"],
 .pagewise-swatch[data-pagewise-pattern="paws"] {
-  --pagewise-tile: var(--pagewise-bg-paws);
   --pagewise-veil: var(--pagewise-veil-paws);
+}
+
+.pagewise-active[data-pagewise-pattern],
+.pagewise-swatch[data-pagewise-pattern] {
+  --pagewise-tile: var(--pagewise-pattern-light);
+}
+.theme-dark .pagewise-active[data-pagewise-pattern],
+.theme-dark .pagewise-swatch[data-pagewise-pattern] {
+  --pagewise-tile: var(--pagewise-pattern-dark);
 }
 
 /* The veil is the canvas colour itself, so the sheet keeps the contrast it has on

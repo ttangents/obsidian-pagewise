@@ -1,12 +1,9 @@
 /**
  * Assembles styles.css from styles/*.css, in file-name order. Ported from Home Cards.
  *
- * Background tiles live as WebP files in assets/tiles/ and are referenced from the
- * partials as `url("@tile:<id>-<mode>@")`. Obsidian loads a plugin's styles.css as one
- * file with no asset path, so each placeholder becomes an inline data URL here.
- *
- * The build fails, and writes nothing, when a placeholder names a missing tile, when
- * a placeholder survives substitution, or when braces do not balance in a partial.
+ * The background tiles stay out of the stylesheet: scripts/build-tiles.mjs bundles
+ * them into main.js. The build fails, and writes nothing, when braces do not balance
+ * in a partial or a partial still names a tile.
  */
 
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -14,9 +11,6 @@ import { join } from "node:path";
 
 const root = process.cwd();
 const partialsDir = join(root, "styles");
-const tilesDir = join(root, "assets", "tiles");
-const PLACEHOLDER = /@tile:([a-z0-9-]+)@/g;
-const MIME = { webp: "image/webp", png: "image/png" };
 
 function fail(message) {
   console.error(`build-css: ${message}`);
@@ -43,14 +37,7 @@ for (const name of partials) {
   css += text;
 }
 
-const tiles = new Set(readdirSync(tilesDir));
-css = css.replace(PLACEHOLDER, (_, id) => {
-  const type = Object.keys(MIME).find((ext) => tiles.has(`${id}.${ext}`));
-  if (!type) fail(`placeholder names a missing tile: ${id}`);
-  const data = readFileSync(join(tilesDir, `${id}.${type}`)).toString("base64");
-  return `data:${MIME[type]};base64,${data}`;
-});
-if (css.includes("@tile:")) fail("a malformed @tile placeholder survived substitution");
+if (css.includes("@tile:")) fail("a partial names a tile; tiles travel in main.js (scripts/build-tiles.mjs)");
 
 writeFileSync(join(root, "styles.css"), css);
 console.log(`build-css: styles.css, ${(css.length / 1024).toFixed(0)} KB`);

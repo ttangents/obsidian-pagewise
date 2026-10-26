@@ -11,7 +11,7 @@ import { executeCommand, findCommand, hotkeyFor, listCommands, openSettingTab, t
 import { NoteToolbar } from "./toolbar/noteToolbar";
 import { BUILT_IN_CONTROLS } from "./toolbar/controls";
 import { PropertiesCollapser } from "./properties/propertiesCollapser";
-import { PATTERN_ATTRIBUTE } from "./appearance/backgrounds";
+import { showPattern } from "./appearance/patternStyle";
 import { markdownViews } from "./workspace";
 import { DOM } from "./obsidianDom";
 
@@ -87,7 +87,7 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
     this.toolbar.dispose();
     this.propertiesSidebar.dispose();
     this.mentionLinks.dispose();
-    markdownViews(this.app).forEach((view) => view.containerEl.removeAttribute(PATTERN_ATTRIBUTE));
+    markdownViews(this.app).forEach((view) => showPattern(view.containerEl, null));
   }
 
   /** Routes the toggle by scope: one ephemeral pane, or the persisted every-note state. */
@@ -181,8 +181,7 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
   private syncBackground(): void {
     const pattern = this.settings.background;
     markdownViews(this.app).forEach((view) => {
-      if (pattern !== "plain" && this.controller.isPaginated(view)) view.containerEl.setAttribute(PATTERN_ATTRIBUTE, pattern);
-      else view.containerEl.removeAttribute(PATTERN_ATTRIBUTE);
+      showPattern(view.containerEl, this.controller.isPaginated(view) ? pattern : null);
     });
   }
 

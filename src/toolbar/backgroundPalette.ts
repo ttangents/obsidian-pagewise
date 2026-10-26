@@ -1,4 +1,5 @@
-import { BACKGROUNDS, PATTERN_ATTRIBUTE, type BackgroundId } from "../appearance/backgrounds";
+import { BACKGROUNDS, type BackgroundId } from "../appearance/backgrounds";
+import { showPattern } from "../appearance/patternStyle";
 
 /** What the palette reads and writes: the one background setting. */
 export interface BackgroundChoice {
@@ -50,7 +51,7 @@ export class BackgroundPalette {
     this.items = BACKGROUNDS.map(({ id, label }) => {
       const button = grid.createEl("button", { cls: "pagewise-swatch-item", attr: { type: "button", role: "radio" } });
       const face = button.createDiv({ cls: "pagewise-swatch" });
-      if (id !== "plain") face.setAttribute(PATTERN_ATTRIBUTE, id);
+      showPattern(face, id);
       button.createDiv({ cls: "pagewise-swatch-label", text: label });
       button.addEventListener("click", () => this.pick(id));
       return { id, button };
