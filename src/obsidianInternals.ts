@@ -10,10 +10,25 @@ import type { App, MarkdownView, Menu, MenuItem } from "obsidian";
  * - Menu.dom / MenuItem.dom: the rendered elements (submenu anchoring, hint placement).
  * - MarkdownView.metadataEditor.setCollapse: collapse Properties in Live Preview.
  * - app.plugins.getPlugin: another installed plugin's instance (the Semantic Zoom integration).
+ * - app.commands.listCommands / findCommand: the command palette's commands (command buttons).
+ * - app.setting.open / openTabById: open Pagewise's settings ("Customize toolbar…").
+ * - Menu.items: whether a filled menu has anything to show.
  */
 
+/** A command as the command palette lists it. */
+export interface PaletteCommand {
+  id: string;
+  name: string;
+  icon?: string;
+}
+
 interface AppInternals {
-  commands?: { executeCommandById?(id: string): boolean };
+  commands?: {
+    executeCommandById?(id: string): boolean;
+    listCommands?(): PaletteCommand[];
+    findCommand?(id: string): PaletteCommand | undefined;
+  };
+  setting?: { open?(): void; openTabById?(id: string): unknown };
   hotkeyManager?: { printHotkeyForCommand?(id: string): string };
   plugins?: { getPlugin?(id: string): unknown };
 }
@@ -58,4 +73,36 @@ export function setMetadataCollapsed(view: MarkdownView, collapsed: boolean): bo
 /** Another community plugin's running instance, or undefined when it is not installed and enabled. */
 export function getPlugin(app: App, id: string): unknown {
   return (app as unknown as AppInternals).plugins?.getPlugin?.(id) ?? undefined;
+}
+
+/** Every command in the command palette, or an empty list when Obsidian hides them. */
+export function listCommands(app: App): PaletteCommand[] {
+  const commands = (app as unknown as AppInternals).commands?.listCommands?.();
+  return Array.isArray(commands) ? commands.filter(isCommand) : [];
+}
+
+/** One command by id, or null when no enabled plugin provides it. */
+export function findCommand(app: App, id: string): PaletteCommand | null {
+  const command = (app as unknown as AppInternals).commands?.findCommand?.(id);
+  return isCommand(command) ? command : null;
+}
+
+/** Opens Obsidian's settings at a plugin's tab. @returns false when that is unavailable. */
+export function openSettingTab(app: App, pluginId: string): boolean {
+  const setting = (app as unknown as AppInternals).setting;
+  if (typeof setting?.open !== "function" || typeof setting.openTabById !== "function") return false;
+  setting.open();
+  setting.openTabById(pluginId);
+  return true;
+}
+
+/** True when a filled menu has no items; false when it has some or Obsidian hides the list. */
+export function menuIsEmpty(menu: Menu): boolean {
+  const items = (menu as unknown as { items?: unknown }).items;
+  return Array.isArray(items) && items.length === 0;
+}
+
+function isCommand(value: unknown): value is PaletteCommand {
+  const command = value as Partial<PaletteCommand> | null | undefined;
+  return !!command && typeof command.id === "string" && typeof command.name === "string";
 }

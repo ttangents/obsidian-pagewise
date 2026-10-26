@@ -224,10 +224,27 @@
   display: none;
 }
 
-/* Reading view has no editor, so only Properties remains. */
-.workspace-leaf-content[data-mode="preview"] .pagewise-toolbar-groups,
-.workspace-leaf-content[data-mode="preview"] .pagewise-toolbar .pagewise-toolbar-more {
+/* Reading view has no editor, so the built-in formatting groups leave. Command
+ * buttons stay, and items other plugins added stay when they ask to. */
+.workspace-leaf-content[data-mode="preview"] .pagewise-toolbar .pagewise-toolbar-group.is-editing {
   display: none;
+}
+
+/* The pattern paints only the paginated canvas, so Background shows only there. */
+.workspace-leaf-content:not(.pagewise-active) .pagewise-toolbar .pagewise-toolbar-background {
+  display: none;
+}
+
+/* The icon preview beside a command button's icon name in settings. */
+.pagewise-settings-icon {
+  display: inline-flex;
+  align-items: center;
+  color: var(--icon-color);
+}
+
+.pagewise-settings-icon svg {
+  width: var(--icon-size, 18px);
+  height: var(--icon-size, 18px);
 }
 
 .pagewise-toolbar .pagewise-toolbar-button {

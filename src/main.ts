@@ -1,11 +1,13 @@
-import { debounce, Plugin, type Events } from "obsidian";
+import { debounce, Notice, Plugin, type Events } from "obsidian";
+import { API_EVENT, type PagewiseApi } from "./toolbar/extensionApi";
+import { ToolbarRegistry, createApi } from "./toolbar/extensionRegistry";
 import { PaginationController } from "./pagination/controller";
 import { PropertiesSidebar } from "./properties/propertiesSidebar";
 import { normalizeSettings, type PagewiseSettings } from "./settings";
 import { PagewiseSettingTab, type SettingsHost } from "./settingsTab";
 import { MentionLinks } from "./backlinks/mentionLinks";
 import { readingDepthFrom } from "./integrations/semanticZoom";
-import { getPlugin } from "./obsidianInternals";
+import { executeCommand, findCommand, getPlugin, listCommands, openSettingTab, type PaletteCommand } from "./obsidianInternals";
 import { NoteToolbar } from "./toolbar/noteToolbar";
 import { PATTERN_ATTRIBUTE } from "./appearance/backgrounds";
 import { markdownViews } from "./workspace";
@@ -21,6 +23,9 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
   private toolbar!: NoteToolbar;
   private propertiesSidebar!: PropertiesSidebar;
   private readonly mentionLinks = new MentionLinks();
+  private readonly registry = new ToolbarRegistry();
+  /** The toolbar API other plugins use: `app.plugins.getPlugin("pagewise").api`. See TOOLBAR-API in Vibes. */
+  readonly api: PagewiseApi = createApi(this.registry, () => this.toolbar.refreshState());
   /**
    * The Properties view and the linked-mentions panel update a moment after the
    * active note changes, so the inspector mark, the toolbar's pressed state and the
@@ -38,7 +43,15 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
       background: () => this.settings.background,
       setBackground: (id) => void this.updateSettings({ background: id }),
       readingDepth: () => readingDepthFrom(getPlugin(this.app, "semantic-zoom")),
-    });
+      commandName: (id) => findCommand(this.app, id)?.name ?? null,
+      runCommand: (id) => executeCommand(this.app, id),
+      openSettings: () => {
+        if (!openSettingTab(this.app, this.manifest.id)) new Notice("Open Settings, then Pagewise, to customize the toolbar.");
+      },
+    }, this.registry);
+    // Extension items arrive and leave at any time; one rebuild covers a burst of them.
+    const rebuildForExtensions = debounce(() => this.toolbar.rebuild(), 0, true);
+    this.register(this.registry.onChange(rebuildForExtensions));
 
     this.addCommand({
       id: "toggle-paginated-view",
@@ -51,10 +64,14 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
     this.app.workspace.onLayoutReady(() => {
       this.controller.applySettings(this.settings);
       this.syncToolbar();
+      // Plugins that loaded before Pagewise learn here that its API is ready.
+      this.app.workspace.trigger(API_EVENT, this.api);
     });
   }
 
   onunload(): void {
+    this.registry.close();
+    this.app.workspace.trigger(API_EVENT, null);
     this.syncSettled.cancel();
     this.controller.dispose();
     this.toolbar.dispose();
@@ -118,10 +135,26 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
     this.registerDomEvent(window, "resize", () => this.controller.requestLayout());
   }
 
-  /** Every paginated pane carries the document toolbar; unpaginated panes carry none. */
+  /** The commands a toolbar button can run, for the settings tab. */
+  listCommands(): PaletteCommand[] {
+    return listCommands(this.app);
+  }
+
+  /** The command palette name of a command, or null while no enabled plugin provides it. */
+  commandName(commandId: string): string | null {
+    return findCommand(this.app, commandId)?.name ?? null;
+  }
+
+  /** Items other plugins added to the toolbar, for the settings tab. */
+  extensionItems(): { id: string; label: string }[] {
+    return this.registry.items().map(({ id, label }) => ({ id, label }));
+  }
+
+  /** Paginated panes carry the document toolbar; with "All notes", every Markdown pane does. */
   private syncToolbar(): void {
     this.syncBackground();
-    this.toolbar.sync((view) => this.controller.isPaginated(view));
+    this.toolbar.configure({ hidden: new Set(this.settings.hiddenControls), commandButtons: this.settings.commandButtons });
+    this.toolbar.sync((view) => this.settings.toolbarScope === "all" || this.controller.isPaginated(view));
     this.syncSettled();
   }
 

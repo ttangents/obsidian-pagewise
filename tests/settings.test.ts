@@ -28,3 +28,21 @@ test("keeps a known background and falls back to plain for anything else", () =>
   assert.equal(normalizeSettings({ background: "velvet" }).background, "plain");
   assert.equal(normalizeSettings({}).background, "plain");
 });
+
+test("toolbar settings keep valid values and drop malformed ones", () => {
+  const settings = normalizeSettings({
+    toolbarScope: "all",
+    hiddenControls: ["bold", "bold", 7, "", "demo:hello"],
+    commandButtons: [
+      { commandId: "daily-notes", icon: "calendar" },
+      { commandId: "daily-notes", icon: "sun" },
+      { commandId: "", icon: "x" },
+      { commandId: "graph:open" },
+      "junk",
+    ],
+  });
+  assert.equal(settings.toolbarScope, "all");
+  assert.deepEqual(settings.hiddenControls, ["bold", "demo:hello"]);
+  assert.deepEqual(settings.commandButtons, [{ commandId: "daily-notes", icon: "calendar" }]);
+  assert.equal(normalizeSettings({ toolbarScope: "everywhere" }).toolbarScope, "paginated");
+});

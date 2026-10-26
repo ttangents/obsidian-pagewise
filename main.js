@@ -25,6 +25,128 @@ __export(main_exports, {
 module.exports = __toCommonJS(main_exports);
 var import_obsidian8 = require("obsidian");
 
+// src/toolbar/extensionApi.ts
+var API_EVENT = "pagewise:api";
+var MAX_ID = 200;
+var MAX_LABEL = 120;
+function validateToolbarItem(input) {
+  if (typeof input !== "object" || input === null) return { error: "the item must be an object" };
+  const raw = input;
+  const text = (key, max) => {
+    const value = raw[key];
+    return typeof value === "string" && value.trim() !== "" && value.length <= max ? value.trim() : null;
+  };
+  const id = text("id", MAX_ID);
+  if (!id) return { error: `"id" must be a non-empty string of at most ${MAX_ID} characters` };
+  const label = text("label", MAX_LABEL);
+  if (!label) return { error: `"label" must be a non-empty string of at most ${MAX_LABEL} characters` };
+  const icon = text("icon", MAX_ID);
+  if (!icon) return { error: `"icon" must be a Lucide icon name` };
+  const fn = (key) => typeof raw[key] === "function" ? raw[key] : void 0;
+  for (const key of ["onClick", "menu", "isActive", "isVisible"]) {
+    if (raw[key] !== void 0 && !fn(key)) return { error: `"${key}" must be a function` };
+  }
+  const onClick = fn("onClick");
+  const menu = fn("menu");
+  if (!onClick === !menu) return { error: 'exactly one of "onClick" and "menu" is required' };
+  const isActive = fn("isActive");
+  if (isActive && menu) return { error: '"isActive" works with "onClick" only' };
+  if (raw.readingView !== void 0 && typeof raw.readingView !== "boolean") {
+    return { error: '"readingView" must be true or false' };
+  }
+  return {
+    item: {
+      id,
+      label,
+      icon,
+      onClick,
+      menu,
+      isActive,
+      isVisible: fn("isVisible"),
+      readingView: raw.readingView === true
+    }
+  };
+}
+
+// src/toolbar/extensionRegistry.ts
+var ToolbarRegistry = class {
+  constructor(warn = (message, detail) => console.warn(message, detail ?? "")) {
+    this.warn = warn;
+    this.entries = /* @__PURE__ */ new Map();
+    this.listeners = /* @__PURE__ */ new Set();
+    this.warned = /* @__PURE__ */ new Set();
+    this.closed = false;
+  }
+  /** Adds or replaces an item; returns its remover, which only ever removes this registration. */
+  register(input) {
+    if (this.closed) return noop;
+    const result = validateToolbarItem(input);
+    if ("error" in result) {
+      this.warn(`Pagewise: a toolbar item was not added because ${result.error}.`);
+      return noop;
+    }
+    const token = {};
+    this.entries.set(result.item.id, { item: result.item, token });
+    this.changed();
+    return () => {
+      const entry = this.entries.get(result.item.id);
+      if (!entry || entry.token !== token) return;
+      this.entries.delete(result.item.id);
+      this.changed();
+    };
+  }
+  get isOpen() {
+    return !this.closed;
+  }
+  items() {
+    return [...this.entries.values()].map((entry) => entry.item);
+  }
+  /** Calls one of an item's callbacks; an exception or a rejected promise becomes `fallback`. */
+  call(id, hook, fn, fallback) {
+    try {
+      const result = fn();
+      const pending = result;
+      if (pending && typeof pending.catch === "function") {
+        result.catch((error) => this.failed(id, hook, error));
+      }
+      return result;
+    } catch (error) {
+      this.failed(id, hook, error);
+      return fallback;
+    }
+  }
+  onChange(listener) {
+    this.listeners.add(listener);
+    return () => this.listeners.delete(listener);
+  }
+  /** On unload: drops every item and refuses new ones, so stale callers do nothing. */
+  close() {
+    this.closed = true;
+    this.entries.clear();
+    this.listeners.clear();
+  }
+  failed(id, hook, error) {
+    const key = `${id}\0${hook}`;
+    if (this.warned.has(key)) return;
+    this.warned.add(key);
+    this.warn(`Pagewise: toolbar item "${id}" failed in ${hook}; Pagewise carried on without it.`, error);
+  }
+  changed() {
+    this.listeners.forEach((listener) => listener());
+  }
+};
+function createApi(registry, refresh) {
+  return Object.freeze({
+    version: 1,
+    registerToolbarItem: (item) => registry.register(item),
+    refreshToolbar: () => {
+      if (registry.isOpen) refresh();
+    }
+  });
+}
+function noop() {
+}
+
 // src/pagination/controller.ts
 var import_obsidian2 = require("obsidian");
 
@@ -129,6 +251,29 @@ function setMetadataCollapsed(view, collapsed) {
 }
 function getPlugin(app, id) {
   return app.plugins?.getPlugin?.(id) ?? void 0;
+}
+function listCommands(app) {
+  const commands = app.commands?.listCommands?.();
+  return Array.isArray(commands) ? commands.filter(isCommand) : [];
+}
+function findCommand(app, id) {
+  const command = app.commands?.findCommand?.(id);
+  return isCommand(command) ? command : null;
+}
+function openSettingTab(app, pluginId) {
+  const setting = app.setting;
+  if (typeof setting?.open !== "function" || typeof setting.openTabById !== "function") return false;
+  setting.open();
+  setting.openTabById(pluginId);
+  return true;
+}
+function menuIsEmpty(menu) {
+  const items = menu.items;
+  return Array.isArray(items) && items.length === 0;
+}
+function isCommand(value) {
+  const command = value;
+  return !!command && typeof command.id === "string" && typeof command.name === "string";
 }
 
 // src/properties/propertiesCollapser.ts
@@ -507,6 +652,9 @@ var BACKGROUND_IDS = BACKGROUNDS.map((background) => background.id);
 var PATTERN_ATTRIBUTE = "data-pagewise-pattern";
 
 // src/settings.ts
+var MAX_COMMAND_BUTTONS = 30;
+var MAX_HIDDEN_CONTROLS = 200;
+var MAX_ID_LENGTH = 200;
 var WORD_MARGIN_MM = 25.4;
 var DEFAULT_SETTINGS = {
   scope: "note",
@@ -516,7 +664,10 @@ var DEFAULT_SETTINGS = {
   gapPx: 24,
   propertiesMode: "sidebar",
   toolbarDirection: "horizontal",
-  background: "plain"
+  background: "plain",
+  toolbarScope: "paginated",
+  hiddenControls: [],
+  commandButtons: []
 };
 function normalizeSettings(raw) {
   const data = typeof raw === "object" && raw !== null ? raw : {};
@@ -531,272 +682,41 @@ function normalizeSettings(raw) {
     gapPx: number(data.gapPx, 0, 200, d.gapPx),
     propertiesMode: oneOf(data.propertiesMode, ["sidebar", "collapse", "none"], d.propertiesMode),
     toolbarDirection: oneOf(data.toolbarDirection, ["horizontal", "vertical"], d.toolbarDirection),
-    background: oneOf(data.background, BACKGROUND_IDS, d.background)
+    background: oneOf(data.background, BACKGROUND_IDS, d.background),
+    toolbarScope: oneOf(data.toolbarScope, ["paginated", "all"], d.toolbarScope),
+    hiddenControls: idList(data.hiddenControls),
+    commandButtons: commandButtons(data.commandButtons)
   };
+}
+function idList(value) {
+  if (!Array.isArray(value)) return [];
+  const ids = value.filter((id) => typeof id === "string" && id !== "" && id.length <= MAX_ID_LENGTH);
+  return [...new Set(ids)].slice(0, MAX_HIDDEN_CONTROLS);
+}
+function commandButtons(value) {
+  if (!Array.isArray(value)) return [];
+  const seen = /* @__PURE__ */ new Set();
+  const buttons = [];
+  for (const entry of value) {
+    const raw = typeof entry === "object" && entry !== null ? entry : {};
+    const { commandId, icon } = raw;
+    if (typeof commandId !== "string" || commandId === "" || commandId.length > MAX_ID_LENGTH || seen.has(commandId)) continue;
+    if (typeof icon !== "string" || icon === "" || icon.length > MAX_ID_LENGTH) continue;
+    seen.add(commandId);
+    buttons.push({ commandId, icon });
+    if (buttons.length === MAX_COMMAND_BUTTONS) break;
+  }
+  return buttons;
 }
 
 // src/settingsTab.ts
-var import_obsidian4 = require("obsidian");
-var PagewiseSettingTab = class extends import_obsidian4.PluginSettingTab {
-  constructor(app, plugin) {
-    super(app, plugin);
-    this.plugin = plugin;
-  }
-  display() {
-    const { containerEl } = this;
-    containerEl.empty();
-    new import_obsidian4.Setting(containerEl).setName("Toggle scope").setDesc(
-      "This note only: pagination applies to the focused note and resets when it is closed or replaced. All notes: pagination applies everywhere at once and survives restarts."
-    ).addDropdown(
-      (dropdown) => dropdown.addOption("note", "This note only (resets on close)").addOption("global", "All notes (persistent)").setValue(this.plugin.settings.scope).onChange(async (value) => {
-        await this.plugin.updateSettings({ scope: value });
-      })
-    );
-    new import_obsidian4.Setting(containerEl).setName("Page size").setDesc("Sheet dimensions used for the paginated view.").addDropdown((dropdown) => {
-      PAGE_SIZES.forEach((size) => dropdown.addOption(size.id, size.label));
-      dropdown.setValue(this.plugin.settings.pageSize).onChange(async (value) => {
-        await this.plugin.updateSettings({ pageSize: value });
-      });
-    });
-    new import_obsidian4.Setting(containerEl).setName("Margins (mm)").setDesc("Applied to all four sides of the on-screen sheet. 25.4 mm matches the Word default of one inch.").addSlider(
-      (slider) => slider.setLimits(10, 40, 1).setDynamicTooltip().setValue(this.plugin.settings.marginMm).onChange(async (value) => {
-        await this.plugin.updateSettings({ marginMm: value });
-      })
-    );
-    new import_obsidian4.Setting(containerEl).setName("Properties in paginated view").setDesc(
-      "Move to sidebar: the panel leaves the page; open it on demand with the toolbar\u2019s Properties button or Obsidian\u2019s own Properties view. Collapse in place: the panel stays on the page, folded. Leave unchanged: no intervention. The note's frontmatter is never modified."
-    ).addDropdown(
-      (dropdown) => dropdown.addOption("sidebar", "Move to sidebar").addOption("collapse", "Collapse in place").addOption("none", "Leave unchanged").setValue(this.plugin.settings.propertiesMode).onChange(async (value) => {
-        await this.plugin.updateSettings({ propertiesMode: value });
-      })
-    );
-    new import_obsidian4.Setting(containerEl).setName("Gap between sheets (px)").addSlider(
-      (slider) => slider.setLimits(0, 64, 4).setDynamicTooltip().setValue(this.plugin.settings.gapPx).onChange(async (value) => {
-        await this.plugin.updateSettings({ gapPx: value });
-      })
-    );
-  }
-};
-
-// src/backlinks/inlineMarkdown.ts
-var Style = {
-  SYNTAX: 1,
-  LINK: 2,
-  BOLD: 4,
-  ITALIC: 8,
-  HIGHLIGHT: 16,
-  STRIKE: 32,
-  CODE: 64
-};
-var WIKILINK = /(!?\[\[)([^[\]|#^\n]*)([#^][^[\]|\n]*)?(?:(\|)([^[\]\n]*))?(\]\])/g;
-var MARKDOWN_LINK = /(!?\[)([^[\]\n]+)(\]\([^()\s]+(?:\s+"[^"\n]*")?\))/g;
-var CODE = /(`+)([^`\n]+?)\1/g;
-var ESCAPE = /\\([\\`*_=~[\]#|!])/g;
-var EMPHASIS = [
-  { pattern: /==(?=\S)([^\n]*?\S)==/g, style: Style.HIGHLIGHT },
-  { pattern: /~~(?=\S)([^\n]*?\S)~~/g, style: Style.STRIKE },
-  { pattern: /\*\*(?=[^\s*])([^\n]*?[^\s*])\*\*/g, style: Style.BOLD },
-  { pattern: /(?<![\p{L}\p{N}_])__(?=[^\s_])([^\n]*?[^\s_])__(?![\p{L}\p{N}_])/gu, style: Style.BOLD },
-  { pattern: /(?<![*\\])\*(?=[^\s*])([^\n*]*?[^\s*\\])\*(?!\*)/g, style: Style.ITALIC },
-  { pattern: /(?<![\p{L}\p{N}_\\])_(?=[^\s_])([^\n_]*?[^\s_\\])_(?![\p{L}\p{N}_])/gu, style: Style.ITALIC }
-];
-function inlineStyles(text) {
-  const styles = new Uint8Array(text.length);
-  const locked = new Uint8Array(text.length);
-  const free = (start, end) => !locked.subarray(start, end).some(Boolean);
-  const hide = (start, end) => {
-    styles.fill(Style.SYNTAX, start, end);
-    locked.fill(1, start, end);
-  };
-  for (const match of text.matchAll(ESCAPE)) {
-    const start = match.index ?? 0;
-    if (!free(start, start + 2)) continue;
-    hide(start, start + 1);
-    locked[start + 1] = 1;
-  }
-  for (const match of text.matchAll(CODE)) {
-    const start = match.index ?? 0;
-    const [whole, ticks] = match;
-    if (!free(start, start + whole.length)) continue;
-    hide(start, start + ticks.length);
-    hide(start + whole.length - ticks.length, start + whole.length);
-    styles.fill(Style.CODE, start + ticks.length, start + whole.length - ticks.length);
-    locked.fill(1, start, start + whole.length);
-  }
-  for (const match of text.matchAll(WIKILINK)) {
-    const [whole, open, target, subpath = "", pipe, alias] = match;
-    const start = match.index ?? 0;
-    if (!free(start, start + whole.length)) continue;
-    const showAlias = !!pipe && alias.trim() !== "";
-    if (!showAlias && target.trim() === "") continue;
-    const targetStart = start + open.length;
-    const shownStart = showAlias ? targetStart + target.length + subpath.length + 1 : targetStart;
-    const shownEnd = showAlias ? shownStart + alias.length : targetStart + target.length;
-    hide(start, shownStart);
-    hide(shownEnd, start + whole.length);
-    styles.fill(Style.LINK, shownStart, shownEnd);
-    locked.fill(1, shownStart, shownEnd);
-  }
-  for (const match of text.matchAll(MARKDOWN_LINK)) {
-    const [whole, open, label] = match;
-    const start = match.index ?? 0;
-    if (!free(start, start + whole.length)) continue;
-    const labelStart = start + open.length;
-    hide(start, labelStart);
-    hide(labelStart + label.length, start + whole.length);
-    for (let i = labelStart; i < labelStart + label.length; i++) styles[i] |= Style.LINK;
-  }
-  for (const { pattern, style } of EMPHASIS) {
-    for (const match of text.matchAll(pattern)) {
-      const start = match.index ?? 0;
-      const whole = match[0];
-      const inner = match[1];
-      const open = whole.indexOf(inner);
-      const innerStart = start + open;
-      const innerEnd = innerStart + inner.length;
-      const end = start + whole.length;
-      if (!open || !free(start, innerStart) || !free(innerEnd, end)) continue;
-      hide(start, innerStart);
-      hide(innerEnd, end);
-      for (let i = innerStart; i < innerEnd; i++) if (!(styles[i] & Style.SYNTAX)) styles[i] |= style;
-    }
-  }
-  return styles;
-}
-
-// src/backlinks/mentionLinks.ts
-var MATCH_SELECTOR = ".search-result-file-match";
-var WRAP_CLASS = "pagewise-md";
-var STYLE_CLASSES = [
-  [Style.SYNTAX, "pagewise-md-syntax"],
-  [Style.LINK, "pagewise-md-link"],
-  [Style.BOLD, "pagewise-md-bold"],
-  [Style.ITALIC, "pagewise-md-italic"],
-  [Style.HIGHLIGHT, "pagewise-md-highlight"],
-  [Style.STRIKE, "pagewise-md-strike"],
-  [Style.CODE, "pagewise-md-code"]
-];
-var SKIP_SELECTOR = ".search-result-hover-button";
-var MentionLinks = class {
-  constructor() {
-    this.watched = /* @__PURE__ */ new Map();
-  }
-  /** Watches the mentions panels of these panes and releases every other one. */
-  sync(paneRoots) {
-    const current = /* @__PURE__ */ new Set();
-    paneRoots.forEach(
-      (root) => root.querySelectorAll(".embedded-backlinks").forEach((panel) => current.add(panel))
-    );
-    this.watched.forEach((observer, panel) => {
-      if (current.has(panel) && panel.isConnected) return;
-      observer.disconnect();
-      this.watched.delete(panel);
-      restore(panel);
-    });
-    current.forEach((panel) => {
-      if (this.watched.has(panel)) return;
-      const Observer = panel.ownerDocument.defaultView?.MutationObserver ?? MutationObserver;
-      const observer = new Observer((records) => records.forEach((record) => this.onMutation(record)));
-      observer.observe(panel, { childList: true, subtree: true });
-      this.watched.set(panel, observer);
-      panel.querySelectorAll(MATCH_SELECTOR).forEach(styleExcerpt);
-    });
-  }
-  dispose() {
-    this.watched.forEach((observer, panel) => {
-      observer.disconnect();
-      restore(panel);
-    });
-    this.watched.clear();
-  }
-  onMutation(record) {
-    const target = record.target instanceof Element ? record.target : record.target.parentElement;
-    const enclosing = target?.closest(MATCH_SELECTOR);
-    if (enclosing) {
-      styleExcerpt(enclosing);
-      return;
-    }
-    record.addedNodes.forEach((node) => {
-      if (!(node instanceof Element)) return;
-      if (node.matches(MATCH_SELECTOR)) styleExcerpt(node);
-      node.querySelectorAll(MATCH_SELECTOR).forEach(styleExcerpt);
-    });
-  }
-};
-function styleExcerpt(excerpt) {
-  const nodes = textNodes(excerpt);
-  const text = nodes.map((node) => node.data).join("");
-  if (!/[[\]=*_~`\\]/.test(text)) return;
-  const kinds = inlineStyles(text);
-  if (!kinds.some(Boolean)) return;
-  let offset = 0;
-  nodes.forEach((node) => {
-    const length = node.data.length;
-    const slice = kinds.subarray(offset, offset + length);
-    offset += length;
-    if (!slice.some(Boolean)) return;
-    const doc = node.ownerDocument;
-    const fragment = doc.createDocumentFragment();
-    let runStart = 0;
-    for (let i = 1; i <= length; i++) {
-      if (i < length && slice[i] === slice[runStart]) continue;
-      const piece = node.data.slice(runStart, i);
-      const kind = slice[runStart];
-      if (kind === 0) {
-        fragment.append(doc.createTextNode(piece));
-      } else {
-        const span = doc.createElement("span");
-        span.classList.add(WRAP_CLASS, ...STYLE_CLASSES.filter(([bit]) => kind & bit).map(([, name]) => name));
-        span.textContent = piece;
-        fragment.append(span);
-      }
-      runStart = i;
-    }
-    node.replaceWith(fragment);
-  });
-}
-function textNodes(excerpt) {
-  const doc = excerpt.ownerDocument;
-  const walker = doc.createTreeWalker(excerpt, NodeFilter.SHOW_TEXT);
-  const nodes = [];
-  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-    const parent = node.parentElement;
-    if (!parent || parent.closest(`${SKIP_SELECTOR}, .${WRAP_CLASS}`)) continue;
-    nodes.push(node);
-  }
-  return nodes;
-}
-function restore(panel) {
-  panel.querySelectorAll(`.${WRAP_CLASS}`).forEach((span) => {
-    const parent = span.parentElement;
-    span.replaceWith(span.ownerDocument.createTextNode(span.textContent ?? ""));
-    parent?.normalize();
-  });
-}
-
-// src/integrations/semanticZoom.ts
-function isLevel(value) {
-  const v = value;
-  return !!v && typeof v.level === "number" && typeof v.name === "string" && typeof v.hint === "string";
-}
-function readingDepthFrom(plugin) {
-  const api = plugin?.api;
-  if (!api || api.version !== 1 || api.available !== true || typeof api.open !== "function") return null;
-  if (!Array.isArray(api.levels)) return null;
-  const levels = api.levels.filter(isLevel);
-  if (levels.length === 0) return null;
-  const open = api.open;
-  return {
-    levels,
-    open: (file, level, leaf, line) => open.call(api, file, { level, leaf, line })
-  };
-}
-
-// src/toolbar/noteToolbar.ts
 var import_obsidian7 = require("obsidian");
 
+// src/toolbar/noteToolbar.ts
+var import_obsidian6 = require("obsidian");
+
 // src/toolbar/icons.ts
-var import_obsidian5 = require("obsidian");
+var import_obsidian4 = require("obsidian");
 var HEADING_ICON_PREFIX = "pagewise-heading-";
 var SEPARATOR_ICON = "pagewise-separator";
 function headingIcon(level) {
@@ -804,18 +724,18 @@ function headingIcon(level) {
 }
 function registerCustomIcons(levels) {
   levels.forEach((level) => {
-    (0, import_obsidian5.addIcon)(
+    (0, import_obsidian4.addIcon)(
       headingIcon(level),
       `<rect x="14" y="14" width="72" height="72" rx="16" fill="none" stroke="currentColor" stroke-width="7"/><text x="50" y="68" text-anchor="middle" font-size="48" font-weight="600" fill="currentColor">${level}</text>`
     );
   });
-  (0, import_obsidian5.addIcon)(
+  (0, import_obsidian4.addIcon)(
     SEPARATOR_ICON,
     '<circle cx="16" cy="50" r="9" fill="currentColor"/><line x1="34" y1="50" x2="88" y2="50" stroke="currentColor" stroke-width="8" stroke-linecap="round"/>'
   );
 }
 function resolveIcon(icons) {
-  return icons.find((name) => (0, import_obsidian5.getIcon)(name)) ?? icons[icons.length - 1];
+  return icons.find((name) => (0, import_obsidian4.getIcon)(name)) ?? icons[icons.length - 1];
 }
 
 // src/toolbar/markdownActions.ts
@@ -848,11 +768,11 @@ function onBlankLine(editor) {
 }
 
 // src/toolbar/menus.ts
-var import_obsidian6 = require("obsidian");
+var import_obsidian5 = require("obsidian");
 var MENU_CLASS = "pagewise-menu";
 var hideListeners = /* @__PURE__ */ new WeakMap();
 function createMenu() {
-  const menu = new import_obsidian6.Menu();
+  const menu = new import_obsidian5.Menu();
   menu.setUseNativeMenu(false);
   menuDom(menu)?.classList.add(MENU_CLASS);
   const listeners = [];
@@ -890,7 +810,7 @@ function addSubmenu(menu, title, icon, entries, disabled = false) {
     }
     const arrow = document.createElement("span");
     arrow.className = "pagewise-submenu-arrow";
-    (0, import_obsidian6.setIcon)(arrow, "chevron-right");
+    (0, import_obsidian5.setIcon)(arrow, "chevron-right");
     itemDom.append(arrow);
     let submenu = null;
     const close = () => {
@@ -1469,15 +1389,46 @@ var HOST_CLASS = "pagewise-has-toolbar";
 var OVERFLOWED_CLASS = "is-overflowed";
 var EMPTY_CLASS = "is-empty";
 var UNAVAILABLE_CLASS = "is-unavailable";
+var BUILT_IN_CONTROLS = [
+  { id: "headings", label: "Headings" },
+  { id: "lists", label: "Lists and blocks" },
+  { id: "bold", label: "Bold" },
+  { id: "italic", label: "Italic" },
+  { id: "highlight", label: "Highlight" },
+  { id: "link", label: "Insert link" },
+  { id: "table", label: "Table" },
+  { id: "image", label: "Insert image" },
+  { id: "reading-depth", label: "Reading depth (with Semantic Zoom)" },
+  { id: "background", label: "Background" },
+  { id: "properties", label: "Properties" }
+];
+var FALLBACK_ICON = "puzzle";
 var NoteToolbar = class {
-  constructor(app, actions) {
+  constructor(app, actions, registry) {
     this.app = app;
     this.actions = actions;
+    this.registry = registry;
     this.panes = /* @__PURE__ */ new Map();
+    this.config = { hidden: /* @__PURE__ */ new Set(), commandButtons: [] };
+    this.shouldShow = () => false;
     registerCustomIcons(HEADING_LEVELS);
+  }
+  /** Applies the user's toolbar settings; rebuilds the bars only when they changed. */
+  configure(config) {
+    const key = (c) => JSON.stringify([[...c.hidden].sort(), c.commandButtons]);
+    if (key(config) === key(this.config)) return;
+    this.config = config;
+    this.rebuild();
+  }
+  /** Builds every bar afresh, after the settings or the registered extension items changed. */
+  rebuild() {
+    this.panes.forEach((pane) => pane.destroy());
+    this.panes.clear();
+    this.sync(this.shouldShow);
   }
   /** Gives each open Markdown pane a toolbar exactly when the predicate says so. */
   sync(shouldShow) {
+    this.shouldShow = shouldShow;
     const views = new Set(markdownViews(this.app));
     this.panes.forEach((pane, view) => {
       if (views.has(view) && view.containerEl.isConnected && shouldShow(view)) return;
@@ -1488,11 +1439,11 @@ var NoteToolbar = class {
       if (!shouldShow(view)) return;
       const pane = this.panes.get(view);
       if (pane) pane.attach();
-      else this.panes.set(view, new PaneToolbar(this.app, view, this.actions));
+      else this.panes.set(view, new PaneToolbar(this.app, view, this.actions, this.config, this.registry));
     });
     this.refreshState();
   }
-  /** Re-reads state shown on the bars: the Properties button's pressed state. */
+  /** Re-reads state shown on the bars: pressed states and which controls are available. */
   refreshState() {
     this.panes.forEach((pane) => pane.refreshState());
   }
@@ -1502,10 +1453,12 @@ var NoteToolbar = class {
   }
 };
 var PaneToolbar = class {
-  constructor(app, view, actions) {
+  constructor(app, view, actions, config, registry) {
     this.app = app;
     this.view = view;
     this.actions = actions;
+    this.config = config;
+    this.registry = registry;
     this.placed = [];
     /** The menu this bar has open, if any, and the button it belongs to. */
     this.openMenu = null;
@@ -1520,11 +1473,15 @@ var PaneToolbar = class {
     this.el.addEventListener("keydown", (event) => this.onKeydown(event));
     this.el.addEventListener("focusin", (event) => this.setTabStop(event.target));
     this.el.addEventListener("pointerenter", () => this.refreshState());
+    this.el.addEventListener("contextmenu", (event) => this.showCustomizeMenu(event));
     this.groupsEl = this.el.createDiv({ cls: "pagewise-toolbar-groups" });
-    this.controlGroups().forEach((controls) => {
-      const group = this.groupsEl.createDiv({ cls: "pagewise-toolbar-group" });
-      controls.forEach((control) => {
+    this.controlGroups().forEach(({ kind, controls }) => {
+      const visible = controls.filter((control) => !config.hidden.has(control.id));
+      if (visible.length === 0) return;
+      const group = this.groupsEl.createDiv({ cls: `pagewise-toolbar-group is-${kind}` });
+      visible.forEach((control) => {
         const button = control.fill ? this.menuButton(control.label, control.icon, control.fill) : this.commandButton(control.label, control.icon, control.run);
+        if (control.isActive) button.setAttribute("aria-pressed", "false");
         group.append(button);
         this.placed.push({ control, button, group });
       });
@@ -1535,26 +1492,35 @@ var PaneToolbar = class {
     this.propertiesButton = this.button("Properties", (keyboard) => void this.toggleProperties(keyboard));
     this.propertiesButton.classList.add("pagewise-toolbar-properties");
     this.propertiesButton.setAttribute("aria-pressed", "false");
-    (0, import_obsidian7.setIcon)(this.propertiesButton, resolveIcon(["info"]));
+    (0, import_obsidian6.setIcon)(this.propertiesButton, resolveIcon(["info"]));
     this.readingDepthButton = this.menuButton("Reading depth", ["layers", "list-tree"], (menu) => this.fillReadingDepth(menu));
     this.readingDepthButton.classList.add("pagewise-toolbar-reading-depth", UNAVAILABLE_CLASS);
     const backgroundButton = this.button("Background", () => {
       if (this.palette.isOpen) this.palette.close(false);
       else this.palette.open();
     });
+    backgroundButton.classList.add("pagewise-toolbar-background");
     backgroundButton.setAttribute("aria-haspopup", "dialog");
     backgroundButton.setAttribute("aria-expanded", "false");
-    (0, import_obsidian7.setIcon)(backgroundButton, resolveIcon(["swatch-book", "palette"]));
+    (0, import_obsidian6.setIcon)(backgroundButton, resolveIcon(["swatch-book", "palette"]));
     this.palette = new BackgroundPalette(this.el, backgroundButton, {
       current: () => this.actions.background(),
       choose: (id) => this.actions.setBackground(id)
     });
-    trailing.append(this.moreButton, this.readingDepthButton, backgroundButton, this.propertiesButton);
+    const trailingControls = [
+      ["reading-depth", this.readingDepthButton],
+      ["background", backgroundButton],
+      ["properties", this.propertiesButton]
+    ];
+    trailing.append(this.moreButton, ...trailingControls.filter(([id]) => !config.hidden.has(id)).map(([, button]) => button));
     this.attach();
     this.setTabStop(this.placed[0]?.button ?? this.propertiesButton);
     const Observer = doc.defaultView?.ResizeObserver ?? ResizeObserver;
     this.observer = new Observer(() => this.fit());
     this.observer.observe(this.groupsEl);
+    const Mutations = doc.defaultView?.MutationObserver ?? MutationObserver;
+    this.modeObserver = new Mutations(() => this.fit());
+    this.modeObserver.observe(view.containerEl, { attributes: true, attributeFilter: ["data-mode"] });
   }
   /** Places the bar between the view header and the content; idempotent. */
   attach() {
@@ -1568,7 +1534,19 @@ var PaneToolbar = class {
     this.propertiesButton.setAttribute("aria-pressed", String(this.actions.propertiesShown(this.view)));
     this.palette.paint();
     this.readingDepthButton.classList.toggle(UNAVAILABLE_CLASS, !this.readingDepthAvailable());
-    this.ensureTabStop();
+    this.fit();
+  }
+  /** Re-reads what can change after the bar is built: availability, pressed state, labels. */
+  updateControls() {
+    this.placed.forEach(({ control, button }) => {
+      button.classList.toggle(UNAVAILABLE_CLASS, control.isAvailable ? !control.isAvailable() : false);
+      if (control.isActive) button.setAttribute("aria-pressed", String(control.isActive()));
+      const label = control.currentLabel?.();
+      if (label && button.getAttribute("aria-label") !== label) {
+        button.setAttribute("aria-label", label);
+        (0, import_obsidian6.setTooltip)(button, label, { placement: "bottom" });
+      }
+    });
   }
   /** Reading depth shows for a Markdown note while Semantic Zoom is installed and ready. */
   readingDepthAvailable() {
@@ -1593,41 +1571,108 @@ var PaneToolbar = class {
   }
   destroy() {
     this.observer.disconnect();
+    this.modeObserver.disconnect();
     this.palette.close(false);
     this.openMenu?.menu.hide();
     this.el.remove();
     this.view.containerEl.classList.remove(HOST_CLASS);
   }
-  /** The controls, grouped by purpose: block formats, inline formats, insertions. */
+  /**
+   * The controls, grouped by purpose: block formats, inline formats and insertions
+   * (built in), then the user's command buttons, then items other plugins added.
+   * The added groups leave for More first, right to left, then the built-in ranks.
+   */
   controlGroups() {
     const { app, view } = this;
     const command = (id) => () => executeCommand(app, id);
+    const commands = this.config.commandButtons;
+    const extensions = this.registry.items();
     return [
-      [
-        { label: "Headings", icon: ["heading"], overflowRank: 6, fill: (menu) => fillHeadingMenu(menu, view.editor) },
-        { label: "Lists and blocks", icon: ["list"], overflowRank: 5, fill: (menu) => fillBlocksMenu(menu, app, view.editor) }
-      ],
-      [
-        { label: "Bold", icon: ["bold"], overflowRank: 8, run: command("editor:toggle-bold") },
-        { label: "Italic", icon: ["italic"], overflowRank: 7, run: command("editor:toggle-italics") },
-        { label: "Highlight", icon: ["highlighter", "paintbrush"], overflowRank: 4, run: command("editor:toggle-highlight") }
-      ],
-      [
-        { label: "Insert link", icon: ["link-2", "link"], overflowRank: 3, run: command("editor:insert-link") },
-        { label: "Table", icon: ["table", "grid-3x3"], overflowRank: 2, fill: (menu) => fillTableMenu(menu, app, view.editor) },
-        { label: "Insert image", icon: ["image-plus", "image"], overflowRank: 1, run: command("editor:attach-file") }
-      ]
+      {
+        kind: "editing",
+        controls: [
+          { id: "headings", label: "Headings", icon: ["heading"], overflowRank: 6, fill: (menu) => fillHeadingMenu(menu, view.editor) },
+          { id: "lists", label: "Lists and blocks", icon: ["list"], overflowRank: 5, fill: (menu) => fillBlocksMenu(menu, app, view.editor) }
+        ]
+      },
+      {
+        kind: "editing",
+        controls: [
+          { id: "bold", label: "Bold", icon: ["bold"], overflowRank: 8, run: command("editor:toggle-bold") },
+          { id: "italic", label: "Italic", icon: ["italic"], overflowRank: 7, run: command("editor:toggle-italics") },
+          { id: "highlight", label: "Highlight", icon: ["highlighter", "paintbrush"], overflowRank: 4, run: command("editor:toggle-highlight") }
+        ]
+      },
+      {
+        kind: "editing",
+        controls: [
+          { id: "link", label: "Insert link", icon: ["link-2", "link"], overflowRank: 3, run: command("editor:insert-link") },
+          { id: "table", label: "Table", icon: ["table", "grid-3x3"], overflowRank: 2, fill: (menu) => fillTableMenu(menu, app, view.editor) },
+          { id: "image", label: "Insert image", icon: ["image-plus", "image"], overflowRank: 1, run: command("editor:attach-file") }
+        ]
+      },
+      {
+        kind: "commands",
+        controls: commands.map((button, index) => this.commandControl(button, -1e3 + (commands.length - 1 - index)))
+      },
+      {
+        kind: "extensions",
+        controls: extensions.map((item, index) => this.extensionControl(item, -2e3 + (extensions.length - 1 - index)))
+      }
     ];
+  }
+  /** A command button the user added. Its command may come and go with its plugin. */
+  commandControl({ commandId, icon }, overflowRank) {
+    const label = () => this.actions.commandName(commandId) ?? commandId;
+    return {
+      id: `command:${commandId}`,
+      label: label(),
+      icon: [icon, FALLBACK_ICON],
+      overflowRank,
+      run: () => this.actions.runCommand(commandId),
+      isAvailable: () => this.actions.commandName(commandId) !== null,
+      currentLabel: label
+    };
+  }
+  /** An item another plugin registered. Every call into it goes through the registry's guard. */
+  extensionControl(item, overflowRank) {
+    const { registry, view } = this;
+    const context = () => ({
+      view,
+      file: view.file,
+      editor: view.editor,
+      mode: view.getMode() === "preview" ? "preview" : "source"
+    });
+    const { onClick, menu, isActive, isVisible } = item;
+    return {
+      id: item.id,
+      label: item.label,
+      icon: [item.icon, FALLBACK_ICON],
+      overflowRank,
+      run: onClick && (() => registry.call(item.id, "onClick", () => onClick(context()), void 0)),
+      fill: menu && ((target) => registry.call(item.id, "menu", () => menu(target, context()), void 0)),
+      isAvailable: () => (item.readingView || context().mode === "source") && registry.call(item.id, "isVisible", () => isVisible ? isVisible(context()) !== false : true, false),
+      isActive: isActive && (() => registry.call(item.id, "isActive", () => isActive(context()) === true, false))
+    };
+  }
+  /** Right-click on the bar offers its settings. */
+  showCustomizeMenu(event) {
+    event.preventDefault();
+    const menu = new import_obsidian6.Menu();
+    menu.addItem((item) => item.setTitle("Customize toolbar\u2026").setIcon("settings").onClick(() => this.actions.openSettings()));
+    menu.showAtMouseEvent(event);
   }
   /**
    * Moves controls into the More menu until the rest fit on one line. Starts from
    * everything shown each time, so the result depends only on the available width.
    */
   fit() {
+    this.updateControls();
     this.placed.forEach(({ button, group }) => {
       button.classList.remove(OVERFLOWED_CLASS);
       group.classList.remove(EMPTY_CLASS);
     });
+    this.placed.forEach(({ group }) => group.classList.toggle(EMPTY_CLASS, groupIsEmpty(group)));
     this.moreButton.classList.add(OVERFLOWED_CLASS);
     const overflowing = () => this.groupsEl.scrollWidth > this.groupsEl.clientWidth + 1;
     if (this.groupsEl.offsetParent !== null && overflowing()) {
@@ -1635,10 +1680,9 @@ var PaneToolbar = class {
       const leaving = [...this.placed].sort((a, b) => a.control.overflowRank - b.control.overflowRank);
       for (const { button, group } of leaving) {
         if (!overflowing()) break;
+        if (button.offsetParent === null) continue;
         button.classList.add(OVERFLOWED_CLASS);
-        if (Array.from(group.children).every((child) => child.classList.contains(OVERFLOWED_CLASS))) {
-          group.classList.add(EMPTY_CLASS);
-        }
+        if (groupIsEmpty(group)) group.classList.add(EMPTY_CLASS);
       }
     }
     this.ensureTabStop();
@@ -1647,7 +1691,7 @@ var PaneToolbar = class {
   fillMore(menu) {
     let lastGroup = null;
     this.placed.forEach(({ control, button, group }) => {
-      if (!button.classList.contains(OVERFLOWED_CLASS)) return;
+      if (!button.classList.contains(OVERFLOWED_CLASS) || button.classList.contains(UNAVAILABLE_CLASS)) return;
       if (lastGroup && lastGroup !== group) menu.addSeparator();
       lastGroup = group;
       const action = control.fill ? (
@@ -1657,7 +1701,8 @@ var PaneToolbar = class {
         this.activatePane();
         control.run();
       };
-      addEntry(menu, { title: control.label, icon: control.icon, action });
+      const entry = addEntry(menu, { title: control.currentLabel?.() ?? control.label, icon: control.icon, action });
+      if (control.isActive) entry.setChecked(control.isActive());
     });
   }
   async toggleProperties(keyboard) {
@@ -1669,7 +1714,12 @@ var PaneToolbar = class {
   runCommand(run, keyboard) {
     this.activatePane();
     run();
-    if (keyboard || !this.editorHasFocus()) this.focusNote();
+    this.updateControls();
+    window.setTimeout(() => {
+      if (!this.el.isConnected || this.app.workspace.getActiveViewOfType(import_obsidian6.MarkdownView) !== this.view) return;
+      if (this.el.ownerDocument.activeElement?.closest(".modal-container, .prompt, .menu")) return;
+      if (keyboard || !this.editorHasFocus()) this.focusNote();
+    }, 0);
   }
   /**
    * Makes this pane the active one before anything acts on it. Obsidian's editor
@@ -1679,7 +1729,7 @@ var PaneToolbar = class {
    */
   activatePane() {
     const { workspace } = this.app;
-    if (workspace.getActiveViewOfType(import_obsidian7.MarkdownView) !== this.view) {
+    if (workspace.getActiveViewOfType(import_obsidian6.MarkdownView) !== this.view) {
       workspace.setActiveLeaf(this.view.leaf, { focus: true });
     }
   }
@@ -1691,6 +1741,7 @@ var PaneToolbar = class {
     this.activatePane();
     const menu = createMenu();
     fill(menu);
+    if (menuIsEmpty(menu)) return;
     menu.setParentElement(button);
     button.setAttribute("aria-expanded", "true");
     this.openMenu = { menu, button };
@@ -1728,13 +1779,13 @@ var PaneToolbar = class {
       button.classList.add("has-menu");
       button.append(iconSpan(button, "pagewise-toolbar-icon", icon), iconSpan(button, "pagewise-toolbar-chevron", ["chevron-down"]));
     } else {
-      (0, import_obsidian7.setIcon)(button, resolveIcon(icon));
+      (0, import_obsidian6.setIcon)(button, resolveIcon(icon));
     }
     return button;
   }
   commandButton(label, icon, run) {
     const button = this.button(label, (keyboard) => this.runCommand(run, keyboard));
-    (0, import_obsidian7.setIcon)(button, resolveIcon(icon));
+    (0, import_obsidian6.setIcon)(button, resolveIcon(icon));
     return button;
   }
   /** `keyboard` is true when Enter or Space pressed the button rather than a pointer. */
@@ -1744,7 +1795,7 @@ var PaneToolbar = class {
     button.type = "button";
     button.tabIndex = -1;
     button.setAttribute("aria-label", label);
-    (0, import_obsidian7.setTooltip)(button, label, { placement: "bottom" });
+    (0, import_obsidian6.setTooltip)(button, label, { placement: "bottom" });
     button.addEventListener("click", (event) => {
       event.preventDefault();
       onPress(event.detail === 0);
@@ -1782,8 +1833,367 @@ var PaneToolbar = class {
 function iconSpan(owner, className, icon) {
   const span = owner.ownerDocument.createElement("span");
   span.className = className;
-  (0, import_obsidian7.setIcon)(span, resolveIcon(icon));
+  (0, import_obsidian6.setIcon)(span, resolveIcon(icon));
   return span;
+}
+function groupIsEmpty(group) {
+  return Array.from(group.children).every(
+    (child) => child.classList.contains(OVERFLOWED_CLASS) || child.classList.contains(UNAVAILABLE_CLASS)
+  );
+}
+
+// src/settingsTab.ts
+var DEFAULT_COMMAND_ICON = "terminal-square";
+var PagewiseSettingTab = class extends import_obsidian7.PluginSettingTab {
+  constructor(app, plugin) {
+    super(app, plugin);
+    this.plugin = plugin;
+  }
+  display() {
+    const { containerEl } = this;
+    containerEl.empty();
+    new import_obsidian7.Setting(containerEl).setName("Toggle scope").setDesc(
+      "This note only: pagination applies to the focused note and resets when it is closed or replaced. All notes: pagination applies everywhere at once and survives restarts."
+    ).addDropdown(
+      (dropdown) => dropdown.addOption("note", "This note only (resets on close)").addOption("global", "All notes (persistent)").setValue(this.plugin.settings.scope).onChange(async (value) => {
+        await this.plugin.updateSettings({ scope: value });
+      })
+    );
+    new import_obsidian7.Setting(containerEl).setName("Page size").setDesc("Sheet dimensions used for the paginated view.").addDropdown((dropdown) => {
+      PAGE_SIZES.forEach((size) => dropdown.addOption(size.id, size.label));
+      dropdown.setValue(this.plugin.settings.pageSize).onChange(async (value) => {
+        await this.plugin.updateSettings({ pageSize: value });
+      });
+    });
+    new import_obsidian7.Setting(containerEl).setName("Margins (mm)").setDesc("Applied to all four sides of the on-screen sheet. 25.4 mm matches the Word default of one inch.").addSlider(
+      (slider) => slider.setLimits(10, 40, 1).setDynamicTooltip().setValue(this.plugin.settings.marginMm).onChange(async (value) => {
+        await this.plugin.updateSettings({ marginMm: value });
+      })
+    );
+    new import_obsidian7.Setting(containerEl).setName("Properties in paginated view").setDesc(
+      "Move to sidebar: the panel leaves the page; open it on demand with the toolbar\u2019s Properties button or Obsidian\u2019s own Properties view. Collapse in place: the panel stays on the page, folded. Leave unchanged: no intervention. The note's frontmatter is never modified."
+    ).addDropdown(
+      (dropdown) => dropdown.addOption("sidebar", "Move to sidebar").addOption("collapse", "Collapse in place").addOption("none", "Leave unchanged").setValue(this.plugin.settings.propertiesMode).onChange(async (value) => {
+        await this.plugin.updateSettings({ propertiesMode: value });
+      })
+    );
+    new import_obsidian7.Setting(containerEl).setName("Gap between sheets (px)").addSlider(
+      (slider) => slider.setLimits(0, 64, 4).setDynamicTooltip().setValue(this.plugin.settings.gapPx).onChange(async (value) => {
+        await this.plugin.updateSettings({ gapPx: value });
+      })
+    );
+    this.displayToolbar(containerEl);
+  }
+  /** The toolbar section: where it shows, which controls it holds, and command buttons. */
+  displayToolbar(containerEl) {
+    const { settings } = this.plugin;
+    new import_obsidian7.Setting(containerEl).setName("Toolbar").setHeading();
+    new import_obsidian7.Setting(containerEl).setName("Show the toolbar on").setDesc("The formatting toolbar at the top of a note.").addDropdown(
+      (dropdown) => dropdown.addOption("paginated", "Paginated notes only").addOption("all", "All notes").setValue(settings.toolbarScope).onChange(async (value) => {
+        await this.plugin.updateSettings({ toolbarScope: value });
+      })
+    );
+    new import_obsidian7.Setting(containerEl).setName("Built-in controls").setDesc("Turn off a control to remove it from the toolbar.").setHeading();
+    BUILT_IN_CONTROLS.forEach(({ id, label }) => this.visibilityToggle(containerEl, id, label));
+    new import_obsidian7.Setting(containerEl).setName("Command buttons").setDesc("Add any command from the command palette as a toolbar button. Icon names come from lucide.dev.").setHeading();
+    settings.commandButtons.forEach((button, index) => this.commandButtonRow(containerEl, button, index));
+    new import_obsidian7.Setting(containerEl).addButton(
+      (button) => button.setButtonText("Add command button").setDisabled(settings.commandButtons.length >= MAX_COMMAND_BUTTONS).onClick(() => new CommandPicker(this.app, this.plugin, (command) => void this.addCommandButton(command)).open())
+    );
+    new import_obsidian7.Setting(containerEl).setName("Added by other plugins").setHeading();
+    const extensions = this.plugin.extensionItems();
+    if (extensions.length === 0) {
+      new import_obsidian7.Setting(containerEl).setDesc("No other plugin has added a toolbar button.");
+    }
+    extensions.forEach(({ id, label }) => this.visibilityToggle(containerEl, id, label, id));
+  }
+  /** A shown/hidden toggle for one built-in or extension control. */
+  visibilityToggle(containerEl, id, label, description) {
+    const setting = new import_obsidian7.Setting(containerEl).setName(label);
+    if (description) setting.setDesc(description);
+    setting.addToggle(
+      (toggle) => toggle.setValue(!this.plugin.settings.hiddenControls.includes(id)).onChange(async (shown) => {
+        const hidden = this.plugin.settings.hiddenControls.filter((other) => other !== id);
+        await this.plugin.updateSettings({ hiddenControls: shown ? hidden : [...hidden, id] });
+      })
+    );
+  }
+  /** One command button: its name, its icon (with a preview), and move and remove controls. */
+  commandButtonRow(containerEl, button, index) {
+    const buttons = this.plugin.settings.commandButtons;
+    const name = this.plugin.commandName(button.commandId);
+    const setting = new import_obsidian7.Setting(containerEl).setName(name ?? "Missing command").setDesc(name ? "" : `${button.commandId}: the plugin that provides it is turned off or removed. The button returns with it.`);
+    const preview = setting.controlEl.createSpan({ cls: "pagewise-settings-icon" });
+    const showIcon = (icon) => {
+      preview.empty();
+      (0, import_obsidian7.setIcon)(preview, (0, import_obsidian7.getIcon)(icon) ? icon : "puzzle");
+    };
+    showIcon(button.icon);
+    setting.addText(
+      (text) => text.setPlaceholder(DEFAULT_COMMAND_ICON).setValue(button.icon).onChange(async (value) => {
+        const icon = value.trim();
+        showIcon(icon);
+        if (!(0, import_obsidian7.getIcon)(icon)) return;
+        await this.saveButtons(buttons.map((other, i) => i === index ? { ...other, icon } : other), false);
+      })
+    );
+    const move = (offset) => {
+      const next = [...buttons];
+      const [moved] = next.splice(index, 1);
+      next.splice(index + offset, 0, moved);
+      void this.saveButtons(next, true);
+    };
+    setting.addExtraButton(
+      (extra) => extra.setIcon("arrow-up").setTooltip("Move earlier on the toolbar").setDisabled(index === 0).onClick(() => move(-1))
+    );
+    setting.addExtraButton(
+      (extra) => extra.setIcon("arrow-down").setTooltip("Move later on the toolbar").setDisabled(index === buttons.length - 1).onClick(() => move(1))
+    );
+    setting.addExtraButton(
+      (extra) => extra.setIcon("trash-2").setTooltip("Remove").onClick(() => void this.saveButtons(buttons.filter((_, i) => i !== index), true))
+    );
+  }
+  async addCommandButton(command) {
+    const buttons = this.plugin.settings.commandButtons.filter((button) => button.commandId !== command.id);
+    const icon = command.icon && (0, import_obsidian7.getIcon)(command.icon) ? command.icon : DEFAULT_COMMAND_ICON;
+    await this.saveButtons([...buttons, { commandId: command.id, icon }], true);
+  }
+  /** Saves the command buttons; `redraw` rebuilds this tab, which typing in an icon field must not do. */
+  async saveButtons(commandButtons2, redraw) {
+    await this.plugin.updateSettings({ commandButtons: commandButtons2 });
+    if (redraw) this.display();
+  }
+};
+var CommandPicker = class extends import_obsidian7.FuzzySuggestModal {
+  constructor(app, host, onChoose) {
+    super(app);
+    this.host = host;
+    this.onChoose = onChoose;
+    this.setPlaceholder("Choose a command for the toolbar");
+  }
+  getItems() {
+    return this.host.listCommands();
+  }
+  getItemText(command) {
+    return command.name;
+  }
+  onChooseItem(command) {
+    this.onChoose(command);
+  }
+};
+
+// src/backlinks/inlineMarkdown.ts
+var Style = {
+  SYNTAX: 1,
+  LINK: 2,
+  BOLD: 4,
+  ITALIC: 8,
+  HIGHLIGHT: 16,
+  STRIKE: 32,
+  CODE: 64
+};
+var WIKILINK = /(!?\[\[)([^[\]|#^\n]*)([#^][^[\]|\n]*)?(?:(\|)([^[\]\n]*))?(\]\])/g;
+var MARKDOWN_LINK = /(!?\[)([^[\]\n]+)(\]\([^()\s]+(?:\s+"[^"\n]*")?\))/g;
+var CODE = /(`+)([^`\n]+?)\1/g;
+var ESCAPE = /\\([\\`*_=~[\]#|!])/g;
+var EMPHASIS = [
+  { pattern: /==(?=\S)([^\n]*?\S)==/g, style: Style.HIGHLIGHT },
+  { pattern: /~~(?=\S)([^\n]*?\S)~~/g, style: Style.STRIKE },
+  { pattern: /\*\*(?=[^\s*])([^\n]*?[^\s*])\*\*/g, style: Style.BOLD },
+  { pattern: /(?<![\p{L}\p{N}_])__(?=[^\s_])([^\n]*?[^\s_])__(?![\p{L}\p{N}_])/gu, style: Style.BOLD },
+  { pattern: /(?<![*\\])\*(?=[^\s*])([^\n*]*?[^\s*\\])\*(?!\*)/g, style: Style.ITALIC },
+  { pattern: /(?<![\p{L}\p{N}_\\])_(?=[^\s_])([^\n_]*?[^\s_\\])_(?![\p{L}\p{N}_])/gu, style: Style.ITALIC }
+];
+function inlineStyles(text) {
+  const styles = new Uint8Array(text.length);
+  const locked = new Uint8Array(text.length);
+  const free = (start, end) => !locked.subarray(start, end).some(Boolean);
+  const hide = (start, end) => {
+    styles.fill(Style.SYNTAX, start, end);
+    locked.fill(1, start, end);
+  };
+  for (const match of text.matchAll(ESCAPE)) {
+    const start = match.index ?? 0;
+    if (!free(start, start + 2)) continue;
+    hide(start, start + 1);
+    locked[start + 1] = 1;
+  }
+  for (const match of text.matchAll(CODE)) {
+    const start = match.index ?? 0;
+    const [whole, ticks] = match;
+    if (!free(start, start + whole.length)) continue;
+    hide(start, start + ticks.length);
+    hide(start + whole.length - ticks.length, start + whole.length);
+    styles.fill(Style.CODE, start + ticks.length, start + whole.length - ticks.length);
+    locked.fill(1, start, start + whole.length);
+  }
+  for (const match of text.matchAll(WIKILINK)) {
+    const [whole, open, target, subpath = "", pipe, alias] = match;
+    const start = match.index ?? 0;
+    if (!free(start, start + whole.length)) continue;
+    const showAlias = !!pipe && alias.trim() !== "";
+    if (!showAlias && target.trim() === "") continue;
+    const targetStart = start + open.length;
+    const shownStart = showAlias ? targetStart + target.length + subpath.length + 1 : targetStart;
+    const shownEnd = showAlias ? shownStart + alias.length : targetStart + target.length;
+    hide(start, shownStart);
+    hide(shownEnd, start + whole.length);
+    styles.fill(Style.LINK, shownStart, shownEnd);
+    locked.fill(1, shownStart, shownEnd);
+  }
+  for (const match of text.matchAll(MARKDOWN_LINK)) {
+    const [whole, open, label] = match;
+    const start = match.index ?? 0;
+    if (!free(start, start + whole.length)) continue;
+    const labelStart = start + open.length;
+    hide(start, labelStart);
+    hide(labelStart + label.length, start + whole.length);
+    for (let i = labelStart; i < labelStart + label.length; i++) styles[i] |= Style.LINK;
+  }
+  for (const { pattern, style } of EMPHASIS) {
+    for (const match of text.matchAll(pattern)) {
+      const start = match.index ?? 0;
+      const whole = match[0];
+      const inner = match[1];
+      const open = whole.indexOf(inner);
+      const innerStart = start + open;
+      const innerEnd = innerStart + inner.length;
+      const end = start + whole.length;
+      if (!open || !free(start, innerStart) || !free(innerEnd, end)) continue;
+      hide(start, innerStart);
+      hide(innerEnd, end);
+      for (let i = innerStart; i < innerEnd; i++) if (!(styles[i] & Style.SYNTAX)) styles[i] |= style;
+    }
+  }
+  return styles;
+}
+
+// src/backlinks/mentionLinks.ts
+var MATCH_SELECTOR = ".search-result-file-match";
+var WRAP_CLASS = "pagewise-md";
+var STYLE_CLASSES = [
+  [Style.SYNTAX, "pagewise-md-syntax"],
+  [Style.LINK, "pagewise-md-link"],
+  [Style.BOLD, "pagewise-md-bold"],
+  [Style.ITALIC, "pagewise-md-italic"],
+  [Style.HIGHLIGHT, "pagewise-md-highlight"],
+  [Style.STRIKE, "pagewise-md-strike"],
+  [Style.CODE, "pagewise-md-code"]
+];
+var SKIP_SELECTOR = ".search-result-hover-button";
+var MentionLinks = class {
+  constructor() {
+    this.watched = /* @__PURE__ */ new Map();
+  }
+  /** Watches the mentions panels of these panes and releases every other one. */
+  sync(paneRoots) {
+    const current = /* @__PURE__ */ new Set();
+    paneRoots.forEach(
+      (root) => root.querySelectorAll(".embedded-backlinks").forEach((panel) => current.add(panel))
+    );
+    this.watched.forEach((observer, panel) => {
+      if (current.has(panel) && panel.isConnected) return;
+      observer.disconnect();
+      this.watched.delete(panel);
+      restore(panel);
+    });
+    current.forEach((panel) => {
+      if (this.watched.has(panel)) return;
+      const Observer = panel.ownerDocument.defaultView?.MutationObserver ?? MutationObserver;
+      const observer = new Observer((records) => records.forEach((record) => this.onMutation(record)));
+      observer.observe(panel, { childList: true, subtree: true });
+      this.watched.set(panel, observer);
+      panel.querySelectorAll(MATCH_SELECTOR).forEach(styleExcerpt);
+    });
+  }
+  dispose() {
+    this.watched.forEach((observer, panel) => {
+      observer.disconnect();
+      restore(panel);
+    });
+    this.watched.clear();
+  }
+  onMutation(record) {
+    const target = record.target instanceof Element ? record.target : record.target.parentElement;
+    const enclosing = target?.closest(MATCH_SELECTOR);
+    if (enclosing) {
+      styleExcerpt(enclosing);
+      return;
+    }
+    record.addedNodes.forEach((node) => {
+      if (!(node instanceof Element)) return;
+      if (node.matches(MATCH_SELECTOR)) styleExcerpt(node);
+      node.querySelectorAll(MATCH_SELECTOR).forEach(styleExcerpt);
+    });
+  }
+};
+function styleExcerpt(excerpt) {
+  const nodes = textNodes(excerpt);
+  const text = nodes.map((node) => node.data).join("");
+  if (!/[[\]=*_~`\\]/.test(text)) return;
+  const kinds = inlineStyles(text);
+  if (!kinds.some(Boolean)) return;
+  let offset = 0;
+  nodes.forEach((node) => {
+    const length = node.data.length;
+    const slice = kinds.subarray(offset, offset + length);
+    offset += length;
+    if (!slice.some(Boolean)) return;
+    const doc = node.ownerDocument;
+    const fragment = doc.createDocumentFragment();
+    let runStart = 0;
+    for (let i = 1; i <= length; i++) {
+      if (i < length && slice[i] === slice[runStart]) continue;
+      const piece = node.data.slice(runStart, i);
+      const kind = slice[runStart];
+      if (kind === 0) {
+        fragment.append(doc.createTextNode(piece));
+      } else {
+        const span = doc.createElement("span");
+        span.classList.add(WRAP_CLASS, ...STYLE_CLASSES.filter(([bit]) => kind & bit).map(([, name]) => name));
+        span.textContent = piece;
+        fragment.append(span);
+      }
+      runStart = i;
+    }
+    node.replaceWith(fragment);
+  });
+}
+function textNodes(excerpt) {
+  const doc = excerpt.ownerDocument;
+  const walker = doc.createTreeWalker(excerpt, NodeFilter.SHOW_TEXT);
+  const nodes = [];
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const parent = node.parentElement;
+    if (!parent || parent.closest(`${SKIP_SELECTOR}, .${WRAP_CLASS}`)) continue;
+    nodes.push(node);
+  }
+  return nodes;
+}
+function restore(panel) {
+  panel.querySelectorAll(`.${WRAP_CLASS}`).forEach((span) => {
+    const parent = span.parentElement;
+    span.replaceWith(span.ownerDocument.createTextNode(span.textContent ?? ""));
+    parent?.normalize();
+  });
+}
+
+// src/integrations/semanticZoom.ts
+function isLevel(value) {
+  const v = value;
+  return !!v && typeof v.level === "number" && typeof v.name === "string" && typeof v.hint === "string";
+}
+function readingDepthFrom(plugin) {
+  const api = plugin?.api;
+  if (!api || api.version !== 1 || api.available !== true || typeof api.open !== "function") return null;
+  if (!Array.isArray(api.levels)) return null;
+  const levels = api.levels.filter(isLevel);
+  if (levels.length === 0) return null;
+  const open = api.open;
+  return {
+    levels,
+    open: (file, level, leaf, line) => open.call(api, file, { level, leaf, line })
+  };
 }
 
 // src/main.ts
@@ -1791,6 +2201,9 @@ var PagewisePlugin = class extends import_obsidian8.Plugin {
   constructor() {
     super(...arguments);
     this.mentionLinks = new MentionLinks();
+    this.registry = new ToolbarRegistry();
+    /** The toolbar API other plugins use: `app.plugins.getPlugin("pagewise").api`. See TOOLBAR-API in Vibes. */
+    this.api = createApi(this.registry, () => this.toolbar.refreshState());
     /**
      * The Properties view and the linked-mentions panel update a moment after the
      * active note changes, so the inspector mark, the toolbar's pressed state and the
@@ -1807,8 +2220,15 @@ var PagewisePlugin = class extends import_obsidian8.Plugin {
       propertiesShown: (view) => this.propertiesSidebar.isShownFor(view.file),
       background: () => this.settings.background,
       setBackground: (id) => void this.updateSettings({ background: id }),
-      readingDepth: () => readingDepthFrom(getPlugin(this.app, "semantic-zoom"))
-    });
+      readingDepth: () => readingDepthFrom(getPlugin(this.app, "semantic-zoom")),
+      commandName: (id) => findCommand(this.app, id)?.name ?? null,
+      runCommand: (id) => executeCommand(this.app, id),
+      openSettings: () => {
+        if (!openSettingTab(this.app, this.manifest.id)) new import_obsidian8.Notice("Open Settings, then Pagewise, to customize the toolbar.");
+      }
+    }, this.registry);
+    const rebuildForExtensions = (0, import_obsidian8.debounce)(() => this.toolbar.rebuild(), 0, true);
+    this.register(this.registry.onChange(rebuildForExtensions));
     this.addCommand({
       id: "toggle-paginated-view",
       name: "Toggle paginated view for this note",
@@ -1820,9 +2240,12 @@ var PagewisePlugin = class extends import_obsidian8.Plugin {
     this.app.workspace.onLayoutReady(() => {
       this.controller.applySettings(this.settings);
       this.syncToolbar();
+      this.app.workspace.trigger(API_EVENT, this.api);
     });
   }
   onunload() {
+    this.registry.close();
+    this.app.workspace.trigger(API_EVENT, null);
     this.syncSettled.cancel();
     this.controller.dispose();
     this.toolbar.dispose();
@@ -1877,10 +2300,23 @@ var PagewisePlugin = class extends import_obsidian8.Plugin {
     this.registerEvent(this.app.vault.on("rename", () => this.syncSettled()));
     this.registerDomEvent(window, "resize", () => this.controller.requestLayout());
   }
-  /** Every paginated pane carries the document toolbar; unpaginated panes carry none. */
+  /** The commands a toolbar button can run, for the settings tab. */
+  listCommands() {
+    return listCommands(this.app);
+  }
+  /** The command palette name of a command, or null while no enabled plugin provides it. */
+  commandName(commandId) {
+    return findCommand(this.app, commandId)?.name ?? null;
+  }
+  /** Items other plugins added to the toolbar, for the settings tab. */
+  extensionItems() {
+    return this.registry.items().map(({ id, label }) => ({ id, label }));
+  }
+  /** Paginated panes carry the document toolbar; with "All notes", every Markdown pane does. */
   syncToolbar() {
     this.syncBackground();
-    this.toolbar.sync((view) => this.controller.isPaginated(view));
+    this.toolbar.configure({ hidden: new Set(this.settings.hiddenControls), commandButtons: this.settings.commandButtons });
+    this.toolbar.sync((view) => this.settings.toolbarScope === "all" || this.controller.isPaginated(view));
     this.syncSettled();
   }
   /** Marks each paginated pane with the chosen pattern; plain and unpaginated panes carry none. */
