@@ -6,7 +6,8 @@ import { PaginationController } from "./pagination/controller";
 import { PropertiesSidebar } from "./properties/propertiesSidebar";
 import { normalizeSettings, type PagewiseSettings } from "./settings";
 import { PagewiseSettingTab, type SettingsHost } from "./settingsTab";
-import { MentionLinks, metadataLinkIndex } from "./backlinks/mentionLinks";
+import { MentionFooters } from "./mentions/mentionFooters";
+import { HOVER_SOURCE } from "./mentions/mentionFooter";
 import { executeCommand, findCommand, hotkeyFor, listCommands, openSettingTab, type PaletteCommand } from "./obsidianInternals";
 import { NoteToolbar } from "./toolbar/noteToolbar";
 import { BUILT_IN_CONTROLS } from "./toolbar/controls";
@@ -25,7 +26,7 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
   private controller!: PaginationController;
   private toolbar!: NoteToolbar;
   private propertiesSidebar!: PropertiesSidebar;
-  private readonly mentionLinks = new MentionLinks(metadataLinkIndex(this.app));
+  private readonly mentionFooters = new MentionFooters(this.app);
   private readonly registry = new ToolbarRegistry();
   /**
    * The toolbar API. Other plugins receive it with the `pagewise:ready` workspace
@@ -35,11 +36,13 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
   readonly api: PagewiseApi = createApi(this.registry, () => this.toolbar.refreshState());
   private readonly announcer = new ApiAnnouncer(this.app.workspace, this.api);
   /**
-   * The Properties view and the linked-mentions panel update a moment after the
-   * active note changes, so the inspector mark, the toolbar's pressed state and the
-   * mention restyling are applied after they settle.
+   * The Properties view and the in-document backlinks container update a moment
+   * after the active note changes, so the inspector mark, the toolbar's pressed state
+   * and the mention footers are applied after they settle.
    */
   private readonly syncSettled = debounce(() => this.syncSettledNow(), 50, true);
+  /** Metadata changes arrive in bursts while the user types; the footers re-read once they settle. */
+  private readonly refreshMentions = debounce(() => this.mentionFooters.refresh(), 500, true);
   /** Extension items arrive and leave at any time; one rebuild covers a burst of them. */
   private readonly rebuildForExtensions = debounce(() => this.toolbar.rebuild(), 0, true);
 
@@ -68,6 +71,7 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
     });
     this.addRibbonIcon("book-open", "Toggle paginated view (Pagewise)", () => void this.toggle());
     this.addSettingTab(new PagewiseSettingTab(this.app, this, this));
+    this.registerHoverLinkSource(HOVER_SOURCE, { display: "Pagewise", defaultMod: false });
     this.registerLayoutTriggers();
     this.app.workspace.onLayoutReady(() => {
       this.controller.applySettings(this.settings);
@@ -82,11 +86,12 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
     this.announcer.unload();
     this.registry.close();
     this.syncSettled.cancel();
+    this.refreshMentions.cancel();
     this.rebuildForExtensions.cancel();
     this.controller.dispose();
     this.toolbar.dispose();
     this.propertiesSidebar.dispose();
-    this.mentionLinks.dispose();
+    this.mentionFooters.dispose();
     markdownViews(this.app).forEach((view) => showPattern(view.containerEl, null));
   }
 
@@ -144,6 +149,7 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
     // Fires when a sidebar opens or closes, which changes what Properties shows.
     this.registerEvent(workspace.on("resize", () => this.syncSettled()));
     this.registerEvent(this.app.vault.on("rename", () => this.syncSettled()));
+    this.registerEvent(this.app.metadataCache.on("resolved", () => this.refreshMentions()));
     this.registerDomEvent(window, "resize", () => this.controller.requestLayout());
     // A pop-out window resizes on its own; its panes need the same re-layout.
     this.registerEvent(workspace.on("window-open", (_, popout) => this.registerDomEvent(popout, "resize", () => this.controller.requestLayout())));
@@ -185,7 +191,7 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
     });
   }
 
-  /** Marks the Properties views showing paginated notes, updates the toolbars' Properties state, and restyles the mention cards. */
+  /** Marks the Properties views showing paginated notes, updates the toolbars' Properties state, and places the mention footers. */
   private syncSettledNow(): void {
     const paginatedViews = markdownViews(this.app).filter((view) => this.controller.isPaginated(view));
     const paginated = new Set<string>();
@@ -194,7 +200,6 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
     });
     this.propertiesSidebar.syncInspectors(paginated);
     this.toolbar.refreshState();
-    this.mentionLinks.sync(paginatedViews.map((view) => ({ root: view.containerEl, path: view.file?.path ?? null })));
+    this.mentionFooters.sync(paginatedViews.map((view) => ({ root: view.containerEl, path: view.file?.path ?? null })));
   }
-
 }

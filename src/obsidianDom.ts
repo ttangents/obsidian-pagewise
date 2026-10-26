@@ -10,7 +10,7 @@
  * `.markdown-preview-view`, `.markdown-source-view.mod-cm6 > .cm-editor > .cm-scroller > .cm-sizer`,
  * `.cm-contentContainer`, `.cm-content`, `.metadata-properties-heading`,
  * `.metadata-content`, `.metadata-properties`, `.metadata-add-button`,
- * `.backlink-pane` and the `.theme-dark` body class.
+ * `.internal-link` (in the Markdown Obsidian renders) and the `.theme-dark` body class.
  */
 export const DOM = {
   /** Reading view's sheet: the direct parent of the rendered sections (pagination). */
@@ -27,16 +27,8 @@ export const DOM = {
   metadataIndicator: ".metadata-properties-heading .collapse-indicator",
   /** The core Properties view's type (Properties sidebar). */
   propertiesViewType: "file-properties",
-  /** The linked-mentions panel under a note and its parts (mention footer). */
+  /** The in-document backlinks container under a note, which Obsidian shows while "Backlinks in document" is on (references footer). */
   embeddedBacklinks: ".embedded-backlinks",
-  /** The first result list in that panel holds the linked mentions. */
-  resultList: ".search-result-container",
-  resultCard: ".search-result",
-  resultTitle: ".search-result-file-title",
-  resultTitleText: ".search-result-file-title .tree-item-inner",
-  resultMatch: ".search-result-file-match",
-  /** The "more context" controls inside an excerpt. */
-  resultHoverButton: ".search-result-hover-button",
   /** Elements that own focus when an action opened them: modals, prompts, menus (toolbar focus). */
   focusOwners: ".modal-container, .prompt, .menu",
   /** PDF export's container, rendered in a hidden window (post-processor). */

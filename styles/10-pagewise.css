@@ -470,169 +470,166 @@
   color: var(--text-normal);
 }
 
-/* ---------- Linked mentions as cards ----------
- * Card styling for the in-document linked mentions panel, active only while the pane
- * is paginated; unpaginated panes and the sidebar Backlinks pane keep stock Obsidian.
- * Layout uses CSS multi-column flow, not grid: Obsidian lazy-renders this panel with
- * zero-height measurement elements between results, which a grid turns into occupied
- * cells and stretched rows. Column flow packs the cards and ignores them.
- * Adapted from the user's backlink-cards.css snippet, 2026-09-18.
- */
-
-.workspace-leaf-content[data-type="markdown"].pagewise-active .embedded-backlinks .search-result-container,
-.workspace-leaf-content[data-type="markdown"].pagewise-active .embedded-backlinks .search-result-container > .search-results-children {
-  display: block !important;
-  width: 100%;
-  max-width: none;
+/* ---------- Linked mentions (mention footer) ----------
+ * In a paginated pane Pagewise draws the linked mentions itself (mentions/), inside
+ * Obsidian's in-document backlinks container, and Obsidian's own panel there gives
+ * way. Unpaginated panes and the Backlinks sidebar keep Obsidian's panel. Each note
+ * that links here from its text is a card; the cards flow in two columns. */
+.workspace-leaf-content[data-type="markdown"].pagewise-active .embedded-backlinks > :not(.pagewise-mentions) {
+  display: none !important;
 }
 
-.workspace-leaf-content[data-type="markdown"].pagewise-active .embedded-backlinks .search-result-container > .search-results-children {
-  columns: 2 !important;
-  column-gap: 14px !important;
-  padding: 8px 0 16px;
+.workspace-leaf-content[data-type="markdown"].pagewise-active .pagewise-mentions {
+  padding: var(--size-4-4) 0 var(--size-4-2);
 }
 
-/* Each source note = one card; never split across columns */
-.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .search-result {
+.workspace-leaf-content[data-type="markdown"].pagewise-active .pagewise-mentions-header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--size-4-2);
+  margin-bottom: var(--size-4-3);
+}
+
+.workspace-leaf-content[data-type="markdown"].pagewise-active .pagewise-mentions-title {
+  font-size: var(--font-ui-medium);
+  font-weight: var(--font-semibold, 600);
+  color: var(--text-normal);
+}
+
+.workspace-leaf-content[data-type="markdown"].pagewise-active .pagewise-mentions-count,
+.workspace-leaf-content[data-type="markdown"].pagewise-active .pagewise-mentions-empty {
+  font-size: var(--font-ui-small);
+  color: var(--text-faint);
+}
+
+.workspace-leaf-content[data-type="markdown"].pagewise-active .pagewise-mentions-cards {
+  columns: 2;
+  column-gap: 14px;
+}
+
+.workspace-leaf-content[data-type="markdown"].pagewise-active .pagewise-mentions-cards:not(.is-unfolded) .pagewise-mention.is-folded {
+  display: none;
+}
+
+/* One card per citing note, never split across columns. */
+.workspace-leaf-content[data-type="markdown"].pagewise-active .pagewise-mentions .pagewise-mention {
   break-inside: avoid;
-  -webkit-column-break-inside: avoid;
-  display: block;
   background: var(--pagewise-card-bg);
   border: 1px solid var(--pagewise-hairline);
   border-radius: var(--pagewise-radius-card);
   padding: 12px 14px 14px;
-  margin: 0 0 14px 0 !important;
-  box-shadow: none;
+  margin: 0 0 14px;
   transition: border-color 140ms ease;
 }
 
-.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .search-result:hover {
+.workspace-leaf-content[data-type="markdown"].pagewise-active .pagewise-mentions .pagewise-mention:hover {
   border-color: var(--background-modifier-border);
 }
 
-/* Source title: small, single line, and the strongest text on the card. The divider
- * keeps its 1px of height but no longer draws. */
-.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .search-result-file-title {
-  font-size: 0.82em;
-  font-weight: 600;
+/* The citing note's name: small, one line, and the strongest text on the card. */
+.workspace-leaf-content[data-type="markdown"].pagewise-active .pagewise-mentions .pagewise-mention-title {
+  font-size: var(--font-ui-small);
+  font-weight: var(--font-semibold, 600);
   color: var(--text-normal);
-  padding: 0 0 8px 0;
-  margin-bottom: 8px;
-  border: none;
-  border-bottom: 1px solid transparent;
+  margin-bottom: var(--size-4-2);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  background: transparent;
+  cursor: var(--cursor-link, pointer);
 }
 
-.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .search-result-file-title:hover {
-  background: transparent;
-  color: var(--text-normal);
+.workspace-leaf-content[data-type="markdown"].pagewise-active .pagewise-mentions .pagewise-mention-title:hover {
+  color: var(--link-color-hover, var(--text-accent-hover));
 }
 
-/* Hide chevron and per-file match count */
-.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .search-result-file-title .collapse-icon,
-.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .search-result-file-title .tree-item-flair-outer {
-  display: none;
-}
-
-.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .search-result-file-title .tree-item-inner {
-  padding-left: 0;
-}
-
-/* Card body */
-.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .search-result-file-matches {
-  padding: 0;
-  margin: 0;
-  box-shadow: none;
-  background: transparent;
-  border: none;
-}
-
-.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .search-result-file-match {
-  font-size: 0.95em;
+/* A passage renders as the note does, a step smaller and muted. Long passages stop
+ * after about eight lines and fade out; the click opens the note at the link. */
+.workspace-leaf-content[data-type="markdown"].pagewise-active .pagewise-mentions .pagewise-mention-passage {
+  position: relative;
+  max-height: 12em;
+  overflow: hidden;
+  mask-image: linear-gradient(to bottom, black 9.5em, transparent 12em);
+  font-size: 0.92em;
   line-height: 1.5;
   color: var(--text-muted);
-  background: transparent;
-  border: none;
-  /* The excerpt rule keeps its 3px of width but no longer draws: the card already
-   * groups its excerpts. */
-  border-left: 3px solid transparent;
   border-radius: var(--pagewise-radius-mark);
-  padding: 2px 0 2px 10px;
-  margin: 0 0 10px 0;
-  transition: border-color 140ms ease, background-color 140ms ease;
+  padding: 2px 6px;
+  margin: 0 -6px 8px;
+  cursor: var(--cursor-link, pointer);
+  transition: background-color 140ms ease;
 }
 
-.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .search-result-file-match:last-child {
+.workspace-leaf-content[data-type="markdown"].pagewise-active .pagewise-mentions .pagewise-mention-passage:last-child {
   margin-bottom: 0;
 }
 
-.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .search-result-file-match:hover {
+.workspace-leaf-content[data-type="markdown"].pagewise-active .pagewise-mentions .pagewise-mention-passage:hover {
   background: var(--background-modifier-hover);
 }
 
-/* Within a card that also has text excerpts, a mention that lives in the source
- * note's properties ("related: [[...]]") stays off the card, as in Home Cards.
- * Obsidian gives every text excerpt its "more context" buttons and builds a property
- * match without them. The rule applies only while the panel shows such buttons at
- * all, so if Obsidian drops them, every excerpt shows instead of none. Whole cards
- * of property mentions are decided from the metadata cache (MentionLinks). */
-.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane:has(.search-result-hover-button) .search-result-file-match:not(:has(> .search-result-hover-button)) {
-  display: none;
+.workspace-leaf-content[data-type="markdown"].pagewise-active .pagewise-mentions .pagewise-mention-passage > :first-child {
+  margin-top: 0;
 }
 
-/* A card whose mentions are all in properties gives way to a pill in one line under
- * the cards (alsoLinked.ts draws it). The footer stays a list of what other
- * notes say about this one; the map of a note's neighbours belongs to Home Cards. */
-.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .search-result.pagewise-mention-property-only {
-  display: none !important;
+.workspace-leaf-content[data-type="markdown"].pagewise-active .pagewise-mentions .pagewise-mention-passage > :last-child {
+  margin-bottom: 0;
+}
+
+/* The link to this note stands out within the muted passage. */
+.workspace-leaf-content[data-type="markdown"].pagewise-active .pagewise-mentions .pagewise-mention-passage .internal-link.pagewise-mention-self {
+  font-weight: var(--font-semibold, 600);
+}
+
+.workspace-leaf-content[data-type="markdown"].pagewise-active .pagewise-mentions-more {
+  margin: 0 0 var(--size-4-3);
+  font-size: var(--font-ui-smaller);
 }
 
 /* The notes that link here only from their properties, as one quiet row of pills
- * after the cards (alsoLinked.ts). The pills take Obsidian's own pill variables, the
- * look of the Properties panel, with the names in the link colour so they read as
- * links. Past five, the rest fold behind a "N more" pill. */
-.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .pagewise-also-linked {
+ * under the cards (alsoLinked.ts). The pills take Obsidian's own pill variables, the
+ * look of the Properties panel, with the names in the link colour. */
+.workspace-leaf-content[data-type="markdown"].pagewise-active .pagewise-mentions .pagewise-also-linked {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: var(--size-4-1) var(--size-4-2);
-  padding: var(--size-4-1) var(--size-4-1) var(--size-4-3);
+  padding: var(--size-4-1) 0 var(--size-4-2);
   font-size: var(--font-ui-smaller);
   line-height: var(--line-height-tight);
 }
 
-.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .pagewise-also-linked-label {
+.workspace-leaf-content[data-type="markdown"].pagewise-active .pagewise-mentions .pagewise-also-linked-label {
   color: var(--text-faint);
   margin-inline-end: var(--size-2-1);
 }
 
 /* The list holds no box of its own, so its pills wrap in the same row as the label. */
-.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .pagewise-also-linked-list {
+.workspace-leaf-content[data-type="markdown"].pagewise-active .pagewise-mentions .pagewise-also-linked-list {
   display: contents;
   list-style: none;
 }
 
-.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .pagewise-also-linked-item {
+.workspace-leaf-content[data-type="markdown"].pagewise-active .pagewise-mentions .pagewise-also-linked-item {
   display: flex;
   min-width: 0;
   max-width: 100%;
   margin: 0;
 }
 
-.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .pagewise-also-linked:not(.is-unfolded) .pagewise-also-linked-item.is-folded {
+.workspace-leaf-content[data-type="markdown"].pagewise-active .pagewise-mentions .pagewise-also-linked:not(.is-unfolded) .pagewise-also-linked-item.is-folded {
   display: none;
 }
 
-.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .pagewise-also-linked-note,
-.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .pagewise-also-linked-toggle {
+.workspace-leaf-content[data-type="markdown"].pagewise-active .pagewise-mentions .pagewise-also-linked-note,
+.workspace-leaf-content[data-type="markdown"].pagewise-active .pagewise-mentions .pagewise-fold-toggle {
+  display: inline-block;
   min-width: 0;
+  max-width: 100%;
   padding: var(--pill-padding-y) var(--pill-padding-x);
   border: var(--pill-border-width) solid var(--pill-border-color);
   border-radius: var(--pill-radius);
   background-color: var(--pill-background);
+  line-height: var(--line-height-tight);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -640,90 +637,46 @@
   transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
 }
 
-.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .pagewise-also-linked-note {
+.workspace-leaf-content[data-type="markdown"].pagewise-active .pagewise-mentions .pagewise-also-linked-note {
   color: var(--link-color, var(--text-accent));
 }
 
-.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .pagewise-also-linked-toggle {
+.workspace-leaf-content[data-type="markdown"].pagewise-active .pagewise-mentions .pagewise-fold-toggle {
   color: var(--text-muted);
   border-style: dashed;
 }
 
-.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .pagewise-also-linked-note:hover,
-.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .pagewise-also-linked-toggle:hover {
+.workspace-leaf-content[data-type="markdown"].pagewise-active .pagewise-mentions .pagewise-also-linked-note:hover,
+.workspace-leaf-content[data-type="markdown"].pagewise-active .pagewise-mentions .pagewise-fold-toggle:hover {
   background-color: var(--background-modifier-hover);
   border-color: var(--pill-border-color-hover);
 }
 
-.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .pagewise-also-linked-note:hover {
+.workspace-leaf-content[data-type="markdown"].pagewise-active .pagewise-mentions .pagewise-also-linked-note:hover {
   color: var(--link-color-hover, var(--text-accent-hover));
 }
 
-.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .pagewise-also-linked-toggle:hover {
+.workspace-leaf-content[data-type="markdown"].pagewise-active .pagewise-mentions .pagewise-fold-toggle:hover {
   color: var(--text-normal);
 }
 
-.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .pagewise-also-linked-note:focus-visible,
-.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .pagewise-also-linked-toggle:focus-visible {
+.workspace-leaf-content[data-type="markdown"].pagewise-active .pagewise-mentions .pagewise-mention-title:focus-visible,
+.workspace-leaf-content[data-type="markdown"].pagewise-active .pagewise-mentions .pagewise-also-linked-note:focus-visible,
+.workspace-leaf-content[data-type="markdown"].pagewise-active .pagewise-mentions .pagewise-fold-toggle:focus-visible {
+  border-radius: var(--pill-radius);
   box-shadow: 0 0 0 2px var(--background-modifier-border-focus);
   outline: none;
 }
 
+.workspace-leaf-content[data-type="markdown"].pagewise-active .pagewise-mentions .pagewise-mention-title:focus-visible {
+  border-radius: var(--pagewise-radius-mark);
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .pagewise-also-linked-note,
-  .workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .pagewise-also-linked-toggle {
+  .workspace-leaf-content[data-type="markdown"].pagewise-active .pagewise-mentions .pagewise-mention,
+  .workspace-leaf-content[data-type="markdown"].pagewise-active .pagewise-mentions .pagewise-mention-passage,
+  .workspace-leaf-content[data-type="markdown"].pagewise-active .pagewise-mentions .pagewise-also-linked-note,
+  .workspace-leaf-content[data-type="markdown"].pagewise-active .pagewise-mentions .pagewise-fold-toggle {
     transition: none;
   }
-}
-
-/* Excerpts read as the note renders: excerpts.ts wraps the Markdown markers (link
- * brackets, ==, **, backticks, callout markers and the like) in a hidden span and the styled words in
- * spans that take the theme's own link, highlight, bold, italic and code styles. The
- * excerpt text itself is unchanged. */
-.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .pagewise-md-syntax {
-  display: none;
-}
-
-.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .pagewise-md-bold {
-  font-weight: var(--bold-weight, var(--font-semibold, 600));
-}
-
-.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .pagewise-md-italic {
-  font-style: italic;
-}
-
-.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .pagewise-md-highlight {
-  background-color: var(--text-highlight-bg);
-  color: var(--text-normal);
-  box-decoration-break: clone;
-  -webkit-box-decoration-break: clone;
-}
-
-/* After the highlight rule, so a link inside a highlight keeps the link colour. */
-.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .pagewise-md-link {
-  color: var(--link-color, var(--text-accent));
-}
-
-.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .pagewise-md-strike {
-  text-decoration: line-through;
-}
-
-.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .pagewise-md-code {
-  font-family: var(--font-monospace);
-  font-size: 0.9em;
-  background-color: var(--code-background, var(--background-primary-alt));
-  border-radius: var(--pagewise-radius-mark);
-  padding: 0.1em 0.25em;
-  box-decoration-break: clone;
-  -webkit-box-decoration-break: clone;
-}
-
-/* The mention of this note: semibold, so it stands out within the muted excerpt.
- * A linked mention also takes the link colour; an unlinked one stays text colour,
- * since it is not a link. */
-.workspace-leaf-content[data-type="markdown"].pagewise-active .backlink-pane .search-result-file-matched-text {
-  background: none;
-  color: var(--text-normal);
-  font-weight: var(--font-semibold, 600);
-  padding: 0;
 }
