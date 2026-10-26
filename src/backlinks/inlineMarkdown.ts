@@ -1,6 +1,8 @@
 /**
  * Reads the inline Markdown in a run of excerpt text: wikilinks, Markdown links,
- * highlights, bold, italics, strikethrough, inline code and backslash escapes. Pure,
+ * highlights, bold, italics, strikethrough, inline code and backslash escapes, plus the
+ * markers at the start of a line that render as formatting (quote and callout markers,
+ * heading hashes). Pure,
  * so it is unit-tested; mentionLinks.ts applies the result to the linked-mention cards.
  *
  * The result is one bitmask per character. Syntax characters (brackets, ==, **, the
@@ -24,6 +26,18 @@ const MARKDOWN_LINK = /(!?\[)([^[\]\n]+)(\]\([^()\s]+(?:\s+"[^"\n]*")?\))/g;
 const CODE = /(`+)([^`\n]+?)\1/g;
 const ESCAPE = /\\([\\`*_=~[\]#|!])/g;
 
+/**
+ * Markers at the start of a line that Obsidian renders as formatting rather than text:
+ * the ">" of a quote or callout, the "[!type]" that opens a callout (with its fold sign),
+ * and the hashes of a heading. An excerpt cut mid-line starts with "..." and so never
+ * matches.
+ */
+const LINE_MARKERS: readonly RegExp[] = [
+  /^[ \t]*(?:>[ \t]?)+/gm,
+  /(?<=^[ \t]*(?:>[ \t]?)+)\[![^\]\n]+\][+-]?[ \t]*/gm,
+  /^#{1,6}[ \t]+/gm,
+];
+
 /** Paired delimiters, longest first, so ** is read before *. */
 const EMPHASIS: readonly { pattern: RegExp; style: number }[] = [
   { pattern: /==(?=\S)([^\n]*?\S)==/g, style: Style.HIGHLIGHT },
@@ -43,6 +57,13 @@ export function inlineStyles(text: string): Uint8Array {
     styles.fill(Style.SYNTAX, start, end);
     locked.fill(1, start, end);
   };
+
+  for (const pattern of LINE_MARKERS) {
+    for (const match of text.matchAll(pattern)) {
+      const start = match.index ?? 0;
+      hide(start, start + match[0].length);
+    }
+  }
 
   for (const match of text.matchAll(ESCAPE)) {
     const start = match.index ?? 0;

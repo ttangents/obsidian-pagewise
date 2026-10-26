@@ -70,3 +70,16 @@ test("without an ellipsis, unmatched markers stay as written", () => {
   assert.equal(shown("advisory]], the AI"), "advisory]], the AI");
   assert.equal(shown("strategy. ==(Not yet published"), "strategy. ==(Not yet published");
 });
+
+test("quote and callout markers at the start of a line hide, and the text stays", () => {
+  assert.equal(shown("> [!success] This note is a part of the project [[Evaluative Research]]."), "This note is a part of the project <link:Evaluative Research>.");
+  assert.equal(shown("> [!note]- Folded title\n> body text"), "Folded title\nbody text");
+  assert.equal(shown(">> nested quote"), "nested quote");
+  assert.equal(shown("## Weights\nThe **score** moved"), "Weights\nThe <b:score> moved");
+});
+
+test("markers away from the start of a line stay as written", () => {
+  assert.equal(shown("...and a > b, so [!note] stays"), "...and a > b, so [!note] stays");
+  assert.equal(shown("see #tag and issue #12"), "see #tag and issue #12");
+  assert.equal(shown("#tag at the start"), "#tag at the start");
+});

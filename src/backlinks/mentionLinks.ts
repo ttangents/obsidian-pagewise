@@ -1,42 +1,23 @@
 import { getLinkpath, type App } from "obsidian";
-import { Style, inlineStyles } from "./inlineMarkdown";
+import { ALSO_LINKED_CLASS, removeAlsoLinked, showAlsoLinked, type AlsoLinkedNote } from "./alsoLinked";
+import { styleExcerpt, unstyleExcerpts } from "./excerpts";
 import { propertyOnlyNames, type LinkIndex } from "./propertyLinks";
 import { DOM } from "../obsidianDom";
 
-const MATCH_SELECTOR = DOM.resultMatch;
-/** Every wrapper Pagewise adds carries this class, plus one class per style. */
-const WRAP_CLASS = "pagewise-md";
-const STYLE_CLASSES: readonly [number, string][] = [
-  [Style.SYNTAX, "pagewise-md-syntax"],
-  [Style.LINK, "pagewise-md-link"],
-  [Style.BOLD, "pagewise-md-bold"],
-  [Style.ITALIC, "pagewise-md-italic"],
-  [Style.HIGHLIGHT, "pagewise-md-highlight"],
-  [Style.STRIKE, "pagewise-md-strike"],
-  [Style.CODE, "pagewise-md-code"],
-];
-/** The "more context" controls Obsidian puts inside each excerpt. */
-const SKIP_SELECTOR = DOM.resultHoverButton;
 /** A card whose only mentions are in the source note's properties; styles.css hides it. */
 const PROPERTY_ONLY_CLASS = "pagewise-mention-property-only";
-/** The compact line that lists those notes instead. */
-const ALSO_LINKED_CLASS = "pagewise-also-linked";
 
 /**
- * Shows the excerpts in the linked-mention cards of paginated panes as Obsidian renders
- * notes: links as their names, ==highlights== highlighted, **bold** bold, and so on,
- * with the Markdown markers hidden. Obsidian renders the excerpts as raw Markdown and re-renders
- * them as the list scrolls or expands, so a MutationObserver on each pane's mentions
- * panel restyles every excerpt it adds.
- *
- * The excerpt text stays intact: the markers are wrapped in a hidden span and the
- * styled words in styled ones, so removing the wrappers restores Obsidian's rendering.
+ * Runs the linked-mentions panel of each paginated pane. Obsidian renders the excerpts
+ * as raw Markdown and re-renders them as the list scrolls or expands, so a
+ * MutationObserver on each panel restyles every excerpt it adds (excerpts.ts): links
+ * as their names, ==highlights== highlighted, callout markers hidden, and so on.
  *
  * Notes that mention this one only in their properties get no card. They are listed
- * by name in one line under the cards, "Also linked from properties in: …", and each
- * name opens its note through Obsidian's own result title, so modifier keys work.
- * Which notes those are comes from Obsidian's metadata cache (propertyLinks); the
- * panel's DOM serves only to find each note's card by its title.
+ * as pills in one line under the cards (alsoLinked.ts), and each pill opens its note
+ * through Obsidian's own result title, so modifier keys work. Which notes those are
+ * comes from Obsidian's metadata cache (propertyLinks.ts); the panel's DOM serves only
+ * to find each note's card by its title.
  */
 export class MentionLinks {
   private readonly watched = new Map<HTMLElement, MutationObserver>();
@@ -80,7 +61,7 @@ export class MentionLinks {
       });
       observer.observe(panel, { childList: true, subtree: true });
       this.watched.set(panel, observer);
-      panel.querySelectorAll<HTMLElement>(MATCH_SELECTOR).forEach(styleExcerpt);
+      panel.querySelectorAll<HTMLElement>(DOM.resultMatch).forEach(styleExcerpt);
       this.schedule(panel);
     });
   }
@@ -109,7 +90,7 @@ export class MentionLinks {
         const observer = this.watched.get(target);
         const path = this.targets.get(target);
         if (!observer || path === undefined) return;
-        gatherPropertyOnly(target, propertyOnlyNames(this.links, path));
+        gatherPropertyOnly(target, path, propertyOnlyNames(this.links, path));
         // Pagewise's own edits must not wake the observer that triggered them.
         observer.takeRecords();
       });
@@ -119,67 +100,17 @@ export class MentionLinks {
 
   private onMutation(record: MutationRecord): void {
     const target = record.target.instanceOf(Element) ? record.target : record.target.parentElement;
-    const enclosing = target?.closest<HTMLElement>(MATCH_SELECTOR);
+    const enclosing = target?.closest<HTMLElement>(DOM.resultMatch);
     if (enclosing) {
       styleExcerpt(enclosing);
       return;
     }
     record.addedNodes.forEach((node) => {
       if (!node.instanceOf(Element)) return;
-      if (node.matches(MATCH_SELECTOR)) styleExcerpt(node as HTMLElement);
-      node.querySelectorAll<HTMLElement>(MATCH_SELECTOR).forEach(styleExcerpt);
+      if (node.matches(DOM.resultMatch)) styleExcerpt(node as HTMLElement);
+      node.querySelectorAll<HTMLElement>(DOM.resultMatch).forEach(styleExcerpt);
     });
   }
-}
-
-/**
- * Wraps the Markdown markers and styled words of one excerpt. A link or highlight may
- * run across Obsidian's spans (the highlighted mention is its own span), so the text
- * is read as one string and the result applied node by node. Text already wrapped is
- * left alone, so running this again changes nothing.
- */
-function styleExcerpt(excerpt: HTMLElement): void {
-  const nodes = textNodes(excerpt);
-  const text = nodes.map((node) => node.data).join("");
-  if (!/[[\]=*_~`\\]/.test(text)) return;
-  const kinds = inlineStyles(text);
-  if (!kinds.some(Boolean)) return;
-  let offset = 0;
-  nodes.forEach((node) => {
-    const length = node.data.length;
-    const slice = kinds.subarray(offset, offset + length);
-    offset += length;
-    if (!slice.some(Boolean)) return;
-    const pieces: (string | HTMLElement)[] = [];
-    let runStart = 0;
-    for (let i = 1; i <= length; i++) {
-      if (i < length && slice[i] === slice[runStart]) continue;
-      const piece = node.data.slice(runStart, i);
-      const kind = slice[runStart];
-      if (kind === 0) {
-        pieces.push(piece);
-      } else {
-        // Created inside the excerpt, so it belongs to the excerpt's window; replaceWith moves it into place.
-        const classes = [WRAP_CLASS, ...STYLE_CLASSES.filter(([bit]) => kind & bit).map(([, name]) => name)];
-        pieces.push(excerpt.createSpan({ cls: classes, text: piece }));
-      }
-      runStart = i;
-    }
-    node.replaceWith(...pieces);
-  });
-}
-
-/** The excerpt's text nodes in order, leaving out Obsidian's controls and anything already wrapped. */
-function textNodes(excerpt: HTMLElement): Text[] {
-  const doc = excerpt.ownerDocument;
-  const walker = doc.createTreeWalker(excerpt, NodeFilter.SHOW_TEXT);
-  const nodes: Text[] = [];
-  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-    const parent = node.parentElement;
-    if (!parent || parent.closest(`${SKIP_SELECTOR}, .${WRAP_CLASS}`)) continue;
-    nodes.push(node as Text);
-  }
-  return nodes;
 }
 
 /**
@@ -187,67 +118,32 @@ function textNodes(excerpt: HTMLElement): Text[] {
  * properties, and lists those notes in one line after the cards. Unlinked mentions,
  * the panel's second result list, are text matches and stay as they are.
  */
-function gatherPropertyOnly(panel: HTMLElement, propertyOnly: ReadonlySet<string>): void {
-  const container = panel.querySelector<HTMLElement>(DOM.resultList);
-  if (!container) return;
-  const cards: HTMLElement[] = [];
-  container.querySelectorAll<HTMLElement>(DOM.resultCard).forEach((card) => {
-    const hide = propertyOnly.has(cardName(card));
+function gatherPropertyOnly(panel: HTMLElement, notePath: string, propertyOnly: ReadonlySet<string>): void {
+  const list = panel.querySelector<HTMLElement>(DOM.resultList);
+  if (!list) return;
+  const notes: AlsoLinkedNote[] = [];
+  list.querySelectorAll<HTMLElement>(DOM.resultCard).forEach((card) => {
+    const name = card.querySelector(DOM.resultTitleText)?.textContent ?? "";
+    const hide = propertyOnly.has(name);
     card.classList.toggle(PROPERTY_ONLY_CLASS, hide);
-    if (hide) cards.push(card);
+    if (hide) notes.push({ name, open: (event) => openCard(card, event) });
   });
-  const next = container.nextElementSibling;
-  let line = next?.instanceOf(HTMLElement) && next.classList.contains(ALSO_LINKED_CLASS) ? next : null;
-  if (cards.length === 0) {
-    line?.remove();
-    return;
-  }
-  const names = cards.map(cardName);
-  if (line?.dataset.names === JSON.stringify(names)) return;
-  if (!line) {
-    line = container.parentElement?.createDiv({ cls: ALSO_LINKED_CLASS }) ?? null;
-    if (!line) return;
-    container.after(line);
-  }
-  drawLine(line, cards, names);
+  showAlsoLinked(list, notePath, notes);
 }
 
-/** The note name a result card shows in its title. */
-function cardName(card: HTMLElement): string {
-  return card.querySelector(DOM.resultTitleText)?.textContent ?? "";
+/** Opens a card's note by clicking its title, passing on the modifier keys of `event`. */
+function openCard(card: HTMLElement, event: MouseEvent | KeyboardEvent): void {
+  const { metaKey, ctrlKey, shiftKey, altKey } = event;
+  card
+    .querySelector<HTMLElement>(DOM.resultTitle)
+    ?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true, metaKey, ctrlKey, shiftKey, altKey }));
 }
 
-function drawLine(line: HTMLElement, cards: HTMLElement[], names: string[]): void {
-  line.dataset.names = JSON.stringify(names);
-  line.replaceChildren();
-  line.createSpan({ cls: "pagewise-also-linked-label", text: "Also linked from properties in " });
-  cards.forEach((card, index) => {
-    const name = line.createSpan({ cls: "pagewise-also-linked-note", text: names[index], attr: { role: "link", tabindex: "0" } });
-    const open = (event: MouseEvent | KeyboardEvent) => {
-      const title = card.querySelector<HTMLElement>(DOM.resultTitle);
-      title?.dispatchEvent(
-        new MouseEvent("click", { bubbles: true, cancelable: true, metaKey: event.metaKey, ctrlKey: event.ctrlKey, shiftKey: event.shiftKey, altKey: event.altKey })
-      );
-    };
-    name.addEventListener("click", open);
-    name.addEventListener("keydown", (event) => {
-      if (event.key !== "Enter") return;
-      event.preventDefault();
-      open(event);
-    });
-    if (index < cards.length - 1) line.appendText(", ");
-  });
-}
-
-/** Puts every wrapped piece back as plain text, as Obsidian rendered it. */
+/** Puts the panel back as Obsidian rendered it. */
 function restore(panel: HTMLElement): void {
-  panel.querySelectorAll(`.${ALSO_LINKED_CLASS}`).forEach((line) => line.remove());
+  removeAlsoLinked(panel);
   panel.querySelectorAll(`.${PROPERTY_ONLY_CLASS}`).forEach((card) => card.classList.remove(PROPERTY_ONLY_CLASS));
-  panel.querySelectorAll<HTMLElement>(`.${WRAP_CLASS}`).forEach((span) => {
-    const parent = span.parentElement;
-    span.replaceWith(span.ownerDocument.createTextNode(span.textContent ?? ""));
-    parent?.normalize();
-  });
+  unstyleExcerpts(panel);
 }
 
 /** Obsidian's metadata cache, read through the public MetadataCache API. */
