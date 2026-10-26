@@ -3,3 +3,5 @@ node_modules/
 src/appearance/tiles.generated.ts
 main.js
 styles.css
+CLAUDE.md
+AGENTS.md
