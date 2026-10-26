@@ -8,7 +8,7 @@ test("drops keys left by removed features", () => {
 });
 
 test("keeps valid stored values", () => {
-  const stored = { ...DEFAULT_SETTINGS, scope: "global", marginMm: 15, toolbarDirection: "vertical", pageSize: "legal" };
+  const stored = { ...DEFAULT_SETTINGS, scope: "global", marginMm: 15, pageSize: "legal" };
   assert.deepEqual(normalizeSettings(stored), stored);
 });
 
@@ -18,9 +18,23 @@ test("falls back to defaults for invalid or missing values", () => {
   assert.deepEqual(normalizeSettings(null), DEFAULT_SETTINGS);
 });
 
-test("keeps the legacy toolbarDirection value so a rollback to 0.24 finds it", () => {
-  const stored = { ...DEFAULT_SETTINGS, toolbarDirection: "vertical" };
-  assert.equal(normalizeSettings(stored).toolbarDirection, "vertical");
+test("a 0.32 data.json loses only the legacy toolbarDirection key", () => {
+  const stored = {
+    scope: "global",
+    globalEnabled: true,
+    pageSize: "letter",
+    marginMm: 20,
+    gapPx: 32,
+    propertiesMode: "collapse",
+    toolbarDirection: "vertical",
+    background: "leaves",
+    toolbarScope: "all",
+    hiddenControls: ["bold"],
+    commandButtons: [{ commandId: "daily-notes", icon: "calendar" }],
+  };
+  const { toolbarDirection, ...kept } = stored;
+  assert.equal(toolbarDirection, "vertical");
+  assert.deepEqual(normalizeSettings(stored), kept);
 });
 
 test("keeps a known background and falls back to plain for anything else", () => {
