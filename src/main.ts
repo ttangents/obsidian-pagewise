@@ -142,6 +142,8 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
     this.registerEvent(workspace.on("resize", () => this.syncSettled()));
     this.registerEvent(this.app.vault.on("rename", () => this.syncSettled()));
     this.registerDomEvent(window, "resize", () => this.controller.requestLayout());
+    // A pop-out window resizes on its own; its panes need the same re-layout.
+    this.registerEvent(workspace.on("window-open", (_, popout) => this.registerDomEvent(popout, "resize", () => this.controller.requestLayout())));
   }
 
   /** The commands a toolbar button can run, for the settings tab. */

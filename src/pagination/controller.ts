@@ -10,7 +10,7 @@ const ACTIVE_CLASS = "pagewise-active";
 const HIDE_PROPS_CLASS = "pagewise-props-hidden";
 const SIZER_SELECTOR = ".markdown-preview-sizer";
 const RELAYOUT_DELAY_MS = 120;
-/** Page geometry published on <body>; inert until a pane carries ACTIVE_CLASS. */
+/** Page geometry, set on each paginated pane's container so pop-out windows get it too. */
 const GEOMETRY_VARS = ["--pagewise-page-width", "--pagewise-page-height", "--pagewise-margin", "--pagewise-gap"] as const;
 
 /**
@@ -27,14 +27,14 @@ export class PaginationController {
   private readonly properties = new PropertiesCollapser();
   private readonly relayout: Debouncer<[], void>;
   private metrics: PageMetrics;
-  private pendingFrame: number | null = null;
+  /** A layout pass waiting for the next frame, with the window that frame belongs to. */
+  private pendingFrame: { win: Window; id: number } | null = null;
 
   constructor(
     private readonly app: App,
     private settings: PagewiseSettings
   ) {
     this.metrics = metricsFrom(settings);
-    this.publishGeometry();
     this.relayout = debounce(() => this.layoutActiveViews(), RELAYOUT_DELAY_MS, true);
   }
 
@@ -52,7 +52,7 @@ export class PaginationController {
   applySettings(settings: PagewiseSettings): void {
     this.settings = settings;
     this.metrics = metricsFrom(settings);
-    this.publishGeometry();
+    this.active.forEach((view) => this.setGeometry(view));
     if (settings.scope === "global") this.syncGlobal();
     if (settings.propertiesMode !== "collapse") this.properties.restore([...this.active]);
     this.active.forEach((view) => this.applyPropertiesMode(view));
@@ -105,7 +105,6 @@ export class PaginationController {
     this.relayout.cancel();
     this.cancelPendingFrame();
     [...this.active].forEach((view) => this.deactivate(view));
-    GEOMETRY_VARS.forEach((name) => document.body.style.removeProperty(name));
   }
 
   /** Brings every open Markdown pane in line with the persisted global state. */
@@ -118,6 +117,7 @@ export class PaginationController {
     this.active.add(view);
     this.notes.set(view, view.file);
     view.containerEl.classList.add(ACTIVE_CLASS);
+    this.setGeometry(view);
     this.applyPropertiesMode(view);
     this.layoutActiveViews();
   }
@@ -126,6 +126,7 @@ export class PaginationController {
     if (!this.active.delete(view)) return;
     this.notes.delete(view);
     view.containerEl.classList.remove(ACTIVE_CLASS, HIDE_PROPS_CLASS);
+    GEOMETRY_VARS.forEach((name) => view.containerEl.style.removeProperty(name));
     this.properties.restore([view]);
     const sizer = this.sizerOf(view);
     if (!sizer) return;
@@ -138,10 +139,14 @@ export class PaginationController {
     this.pruneClosedViews();
     const views = [...this.active];
     if (this.settings.propertiesMode === "collapse" && this.properties.collapse(views)) {
-      this.pendingFrame = window.requestAnimationFrame(() => {
+      this.cancelPendingFrame();
+      // The frame of the window the panes are in; a pop-out paints on its own schedule.
+      const win = views[0]?.containerEl.win ?? window;
+      const id = win.requestAnimationFrame(() => {
         this.pendingFrame = null;
         this.layoutActiveViews();
       });
+      this.pendingFrame = { win, id };
       return;
     }
     views.forEach((view) => {
@@ -157,11 +162,11 @@ export class PaginationController {
     view.containerEl.classList.toggle(HIDE_PROPS_CLASS, this.settings.propertiesMode === "sidebar");
   }
 
-  /** Geometry lives on <body> as CSS variables; they are inert until a pane carries ACTIVE_CLASS. */
-  private publishGeometry(): void {
+  /** Puts the page geometry on the pane's container as CSS variables; deactivate() removes them. */
+  private setGeometry(view: MarkdownView): void {
     const { pageWidthPx, pageHeightPx, marginPx, gapPx } = this.metrics;
     const values = [pageWidthPx, pageHeightPx, marginPx, gapPx];
-    GEOMETRY_VARS.forEach((name, i) => document.body.style.setProperty(name, `${values[i]}px`));
+    GEOMETRY_VARS.forEach((name, i) => view.containerEl.style.setProperty(name, `${values[i]}px`));
   }
 
   private paginatorFor(sizer: HTMLElement): Paginator {
@@ -177,7 +182,9 @@ export class PaginationController {
   private observe(sizer: HTMLElement): void {
     if (this.observers.has(sizer)) return;
     let lastWidth = sizer.clientWidth;
-    const observer = new ResizeObserver(() => {
+    // The observer class of the sizer's own window, so panes in pop-outs are watched too.
+    const Observer = sizer.ownerDocument.defaultView?.ResizeObserver ?? ResizeObserver;
+    const observer = new Observer(() => {
       if (sizer.clientWidth === lastWidth) return;
       lastWidth = sizer.clientWidth;
       this.requestLayout();
@@ -202,7 +209,7 @@ export class PaginationController {
 
   private cancelPendingFrame(): void {
     if (this.pendingFrame === null) return;
-    window.cancelAnimationFrame(this.pendingFrame);
+    this.pendingFrame.win.cancelAnimationFrame(this.pendingFrame.id);
     this.pendingFrame = null;
   }
 

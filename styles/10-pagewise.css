@@ -2,7 +2,7 @@
  * Pagewise — paginated, word-processor style sheet layout.
  *
  * Every color and font comes from the active theme's variables so the sheets adopt
- * whatever theme is loaded. Geometry arrives as CSS variables set on <body> by the plugin:
+ * whatever theme is loaded. Geometry arrives as CSS variables the plugin sets on each paginated pane:
  *   --pagewise-page-width, --pagewise-page-height, --pagewise-margin, --pagewise-gap
  */
 

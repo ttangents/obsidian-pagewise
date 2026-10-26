@@ -105,7 +105,7 @@ export function addSubmenu(menu: Menu, title: string, icon: IconChoice, entries:
         })
       );
       const rect = itemDom.getBoundingClientRect();
-      submenu.showAtPosition({ x: rect.right + 4, y: rect.top });
+      submenu.showAtPosition({ x: rect.right + 4, y: rect.top }, itemDom.doc);
     };
     itemDom.addEventListener("mouseenter", open);
     item.onClick(open);

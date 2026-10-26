@@ -405,7 +405,7 @@ class PaneToolbar {
       lastGroup = group;
       const action = control.fill
         ? // Opens the control's own menu once More has closed, at the same place.
-          () => window.setTimeout(() => this.showMenu(this.moreButton, control.fill!, this.moreKeyboard), 0)
+          () => this.el.win.setTimeout(() => this.showMenu(this.moreButton, control.fill!, this.moreKeyboard), 0)
         : () => {
             this.activatePane();
             control.run!();
@@ -428,7 +428,7 @@ class PaneToolbar {
     this.updateControls();
     // The edit happened in the note, so that is where the caret belongs next, unless
     // the action moved on: opened a modal or menu, or made another pane active.
-    window.setTimeout(() => {
+    this.el.win.setTimeout(() => {
       if (!this.el.isConnected || this.app.workspace.getActiveViewOfType(MarkdownView) !== this.view) return;
       if (this.el.ownerDocument.activeElement?.closest(".modal-container, .prompt, .menu")) return;
       if (keyboard || !this.editorHasFocus()) this.focusNote();
@@ -467,7 +467,7 @@ class PaneToolbar {
       if (this.openMenu?.menu === menu) this.openMenu = null;
       // After the menu's own click handling, return focus where the user left it,
       // unless an action moved it on purpose (a modal, a picker, another menu).
-      window.setTimeout(() => this.restoreFocus(button, keyboard), 0);
+      this.el.win.setTimeout(() => this.restoreFocus(button, keyboard), 0);
     });
     const rect = button.getBoundingClientRect();
     menu.showAtPosition({ x: rect.left, y: rect.bottom + 2 }, button.ownerDocument);
