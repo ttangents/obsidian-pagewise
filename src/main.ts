@@ -31,6 +31,8 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
    * mention restyling are applied after they settle.
    */
   private readonly syncSettled = debounce(() => this.syncSettledNow(), 50, true);
+  /** Extension items arrive and leave at any time; one rebuild covers a burst of them. */
+  private readonly rebuildForExtensions = debounce(() => this.toolbar.rebuild(), 0, true);
 
   async onload(): Promise<void> {
     this.settings = normalizeSettings(await this.loadData());
@@ -47,9 +49,7 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
         if (!openSettingTab(this.app, this.manifest.id)) new Notice("Open settings, then Pagewise, to customize the toolbar.");
       },
     }, this.registry);
-    // Extension items arrive and leave at any time; one rebuild covers a burst of them.
-    const rebuildForExtensions = debounce(() => this.toolbar.rebuild(), 0, true);
-    this.register(this.registry.onChange(rebuildForExtensions));
+    this.register(this.registry.onChange(() => this.rebuildForExtensions()));
 
     this.addCommand({
       id: "toggle-paginated-view",
@@ -71,6 +71,7 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
     this.registry.close();
     this.app.workspace.trigger(API_EVENT, null);
     this.syncSettled.cancel();
+    this.rebuildForExtensions.cancel();
     this.controller.dispose();
     this.toolbar.dispose();
     this.propertiesSidebar.dispose();

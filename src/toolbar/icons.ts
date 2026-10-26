@@ -1,4 +1,4 @@
-import { addIcon, getIcon } from "obsidian";
+import { addIcon, getIcon, removeIcon } from "obsidian";
 
 /**
  * Icon resolution for the toolbar and its menus. Lucide renames icons over time and
@@ -17,8 +17,11 @@ export function headingIcon(level: number): string {
   return `${HEADING_ICON_PREFIX}${level}`;
 }
 
-/** Registers the icons Lucide has no equivalent for: boxed heading numerals and the dot-line separator. */
-export function registerCustomIcons(levels: readonly number[]): void {
+/**
+ * Registers the icons Lucide has no equivalent for: boxed heading numerals and the dot-line separator.
+ * @returns a function that removes every icon it registered, for unload
+ */
+export function registerCustomIcons(levels: readonly number[]): () => void {
   levels.forEach((level) => {
     addIcon(
       headingIcon(level),
@@ -29,6 +32,7 @@ export function registerCustomIcons(levels: readonly number[]): void {
     SEPARATOR_ICON,
     '<circle cx="16" cy="50" r="9" fill="currentColor"/><line x1="34" y1="50" x2="88" y2="50" stroke="currentColor" stroke-width="8" stroke-linecap="round"/>'
   );
+  return () => [...levels.map(headingIcon), SEPARATOR_ICON].forEach((id) => removeIcon(id));
 }
 
 /** The first candidate the running Lucide bundle has; the last candidate when none match. */

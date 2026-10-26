@@ -98,13 +98,14 @@ export class NoteToolbar {
   private readonly panes = new Map<MarkdownView, PaneToolbar>();
   private config: ToolbarConfig = { hidden: new Set(), commandButtons: [] };
   private shouldShow: (view: MarkdownView) => boolean = () => false;
+  private readonly removeIcons: () => void;
 
   constructor(
     private readonly app: App,
     private readonly actions: ToolbarActions,
     private readonly registry: ToolbarRegistry
   ) {
-    registerCustomIcons(HEADING_LEVELS);
+    this.removeIcons = registerCustomIcons(HEADING_LEVELS);
   }
 
   /** Applies the user's toolbar settings; rebuilds the bars only when they changed. */
@@ -145,9 +146,11 @@ export class NoteToolbar {
     this.panes.forEach((pane) => pane.refreshState());
   }
 
+  /** Removes every bar and the icons Pagewise registered. */
   dispose(): void {
     this.panes.forEach((pane) => pane.destroy());
     this.panes.clear();
+    this.removeIcons();
   }
 }
 
