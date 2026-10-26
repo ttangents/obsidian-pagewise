@@ -1,4 +1,5 @@
 import { addFoldToggle, onKeys, shownWhenFolded } from "./fold";
+import { addSection } from "./section";
 
 /** How many notes the line shows before it folds the rest behind "N more". */
 export const SHOWN_PROPERTY_LINKS = 5;
@@ -10,8 +11,9 @@ export interface AlsoLinkedNote {
 }
 
 /**
- * Draws the notes that link here only from their properties as one row of pills in
- * the style of Obsidian's property pills, with the names in the link colour. Past
+ * Draws the "Linked from properties" section: a header like "Linked mentions", then
+ * the notes that link here only from their properties as pills on one card, in the
+ * style of Obsidian's property pills with the names in the link colour. Past
  * SHOWN_PROPERTY_LINKS the rest fold behind a "N more" pill. The pills form a list,
  * so a screen reader announces how many there are.
  */
@@ -21,9 +23,8 @@ export function renderAlsoLinked(
   fold: { unfolded: boolean; onChange(unfolded: boolean): void }
 ): void {
   if (notes.length === 0) return;
-  const line = parent.createDiv({ cls: "pagewise-also-linked" });
+  const line = addSection(parent, "Linked from properties", notes.length).createDiv({ cls: "pagewise-also-linked" });
   line.toggleClass("is-unfolded", fold.unfolded);
-  line.createSpan({ cls: "pagewise-also-linked-label", text: "Linked from properties" });
   const list = line.createEl("ul", { cls: "pagewise-also-linked-list" });
   const shown = shownWhenFolded(notes.length, SHOWN_PROPERTY_LINKS);
   notes.forEach((note, index) => {

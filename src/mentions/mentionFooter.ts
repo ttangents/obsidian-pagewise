@@ -1,6 +1,7 @@
 import { Component, getLinkpath, Keymap, MarkdownRenderer, type App, type HoverParent, type HoverPopover } from "obsidian";
 import { renderAlsoLinked } from "./alsoLinked";
 import { addFoldToggle, onKeys, shownWhenFolded } from "./fold";
+import { addSection } from "./section";
 import { collectMentions, passageMarkdown, type Citation, type LinkIndex, type PropertyLink } from "./mentionIndex";
 
 /** The id Pagewise registers with Page preview for links in its footer. */
@@ -87,17 +88,14 @@ export class MentionFooter extends Component implements HoverParent {
     this.drawn = drawn;
     this.el.empty();
 
-    const header = this.el.createDiv({ cls: "pagewise-mentions-header" });
-    header.createSpan({ cls: "pagewise-mentions-title", text: "Linked mentions", attr: { role: "heading", "aria-level": "2" } });
-    if (cards.length > 0) header.createSpan({ cls: "pagewise-mentions-count", text: String(cards.length) });
-
     if (cards.length === 0 && propertyLinks.length === 0) {
-      this.el.createDiv({ cls: "pagewise-mentions-empty", text: "No notes link here." });
+      addSection(this.el, "Linked mentions").createDiv({ cls: "pagewise-mentions-empty", text: "No notes link here." });
       return;
     }
 
     if (cards.length > 0) {
-      const grid = this.el.createDiv({ cls: "pagewise-mentions-cards" });
+      const section = addSection(this.el, "Linked mentions", cards.length);
+      const grid = section.createDiv({ cls: "pagewise-mentions-cards" });
       const shown = shownWhenFolded(cards.length, SHOWN_CITATIONS);
       cards.slice(0, shown).forEach((card) => this.drawCard(grid, card, drawn, false));
       if (shown < cards.length) {
@@ -105,7 +103,7 @@ export class MentionFooter extends Component implements HoverParent {
         const drawRest = () => cards.slice(shown).forEach((card) => this.drawCard(grid, card, drawn, true));
         if (this.cardsUnfolded) drawRest();
         grid.toggleClass("is-unfolded", this.cardsUnfolded);
-        addFoldToggle(this.el.createDiv({ cls: "pagewise-mentions-more" }), {
+        addFoldToggle(section.createDiv({ cls: "pagewise-mentions-more" }), {
           foldedText: `${cards.length - shown} more notes`,
           unfolded: this.cardsUnfolded,
           onChange: (unfolded) => {
