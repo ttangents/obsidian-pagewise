@@ -88,10 +88,11 @@ interface Placed {
 }
 
 /**
- * The document toolbar: a fixed horizontal bar at the top of each paginated pane,
+ * The document toolbar: a fixed horizontal bar at the top of a Markdown pane,
  * between Obsidian's view header and the scrolling canvas, so it never overlaps the
- * sheet or the find bar and takes no part in pagination. NoteToolbar owns one
- * PaneToolbar per paginated pane and nothing else.
+ * sheet or the find bar and takes no part in pagination. It shows on paginated
+ * panes, or on every Markdown pane when the user chooses "All notes" (D5).
+ * NoteToolbar owns one PaneToolbar per pane that shows the bar and nothing else.
  */
 export class NoteToolbar {
   private readonly panes = new Map<MarkdownView, PaneToolbar>();

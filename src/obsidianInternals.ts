@@ -68,8 +68,6 @@ export function setMetadataCollapsed(view: MarkdownView, collapsed: boolean): bo
   return true;
 }
 
-/** Another community plugin's running instance, or undefined when it is not installed and enabled. */
-
 /** Every command in the command palette, or an empty list when Obsidian hides them. */
 export function listCommands(app: App): PaletteCommand[] {
   const commands = (app as unknown as AppInternals).commands?.listCommands?.();

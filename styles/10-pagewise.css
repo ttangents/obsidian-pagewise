@@ -177,7 +177,8 @@
 }
 
 /* ---------- Document toolbar ----------
- * A fixed bar between the view header and the canvas, on paginated panes only.
+ * A fixed bar between the view header and the canvas, on paginated panes, or on
+ * every Markdown pane when the user chooses "All notes" (D5).
  * NoteToolbar inserts it; the content view gives up exactly the bar's height, so the
  * bar never overlaps the sheet or the find bar and never enters pagination.
  */
