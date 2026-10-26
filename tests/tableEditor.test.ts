@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test } from "vitest";
 import assert from "node:assert/strict";
 import { applyTableEdit, deleteTable, locateTable } from "../src/tables/tableEditor";
 import { setAlignment } from "../src/tables/tableModel";

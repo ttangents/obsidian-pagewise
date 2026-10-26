@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test } from "vitest";
 import assert from "node:assert/strict";
 import { BUILT_IN_CONTROLS, EDITING_CONTROLS, editingGroups } from "../src/toolbar/controls";
 

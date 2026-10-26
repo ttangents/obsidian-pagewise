@@ -2,7 +2,7 @@ import { defineConfig } from "eslint/config";
 import obsidianmd from "eslint-plugin-obsidianmd";
 
 export default defineConfig([
-	{ ignores: ["main.js", "src/appearance/tiles.generated.ts", "node_modules/**", ".test-build/**", "tests/**", "scripts/**", "esbuild.config.mjs", "vitest.config.mts"] },
+	{ ignores: ["main.js", "src/appearance/tiles.generated.ts", "node_modules/**", "tests/**", "scripts/**", "esbuild.config.mjs", "vitest.config.mts"] },
 	...obsidianmd.configs.recommended,
 	{
 		files: ["src/**/*.ts"],

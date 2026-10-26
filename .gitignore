@@ -1,5 +1,4 @@
 node_modules/
-.test-build/
 src/appearance/tiles.generated.ts
 main.js
 styles.css

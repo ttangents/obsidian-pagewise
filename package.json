@@ -4,22 +4,23 @@
   "description": "Toggle a note between the default view and a paginated, word-processor style page layout that honors the active theme.",
   "main": "main.js",
   "scripts": {
-    "build": "npm run css && tsc -noEmit -skipLibCheck && npm run lint && node scripts/test.mjs && node esbuild.config.mjs production",
+    "build": "npm run css && tsc -noEmit -skipLibCheck && npm run lint && vitest run && node esbuild.config.mjs production",
     "css": "node scripts/build-css.mjs && node scripts/build-tiles.mjs",
     "lint": "eslint --max-warnings 0 .",
-    "test": "npm run css && node scripts/test.mjs"
+    "test": "npm run css && vitest run"
   },
   "author": "ttangents",
   "license": "MIT",
   "devDependencies": {
     "@eslint/js": "9.39.5",
     "@eslint/json": "0.14.0",
-    "@types/node": "^20.11.0",
-    "esbuild": "^0.21.0",
+    "@types/node": "22.20.5",
+    "esbuild": "0.28.2",
     "eslint": "9.39.5",
     "eslint-plugin-obsidianmd": "0.4.2",
-    "obsidian": "latest",
-    "typescript": "^5.4.0",
-    "typescript-eslint": "8.72.0"
+    "obsidian": "1.13.1",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.72.0",
+    "vitest": "5.0.5"
   }
 }

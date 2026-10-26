@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test } from "vitest";
 import assert from "node:assert/strict";
 import { insertCallout, insertSeparator, setHeading } from "../src/toolbar/markdownActions";
 import { FakeEditor } from "./fakeEditor";

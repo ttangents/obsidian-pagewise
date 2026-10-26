@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test } from "vitest";
 import assert from "node:assert/strict";
 import { noteName, propertyOnlyNames, type LinkIndex, type NoteLinks } from "../src/backlinks/propertyLinks";
 
