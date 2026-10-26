@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "events": {
+    "ready": "pagewise:ready",
+    "request": "pagewise:request",
+    "unload": "pagewise:unload"
+  },
+  "methods": ["registerToolbarItem", "refreshToolbar"]
+}

@@ -2,8 +2,9 @@ import type { Editor, MarkdownView, Menu, TFile } from "obsidian";
 
 /**
  * Pagewise's public toolbar API, version 1: the contract other plugins build on.
- * The Vibes document TOOLBAR-API holds the guide for plugin authors. Version 1 only
- * ever grows by optional additions; a breaking change would ship as version 2.
+ * The Vibes document API.md holds the guide for plugin authors. Version 1 only
+ * ever grows by optional additions. A breaking version would be passed as a further
+ * argument of the ready event, after version 1 (see apiEvents.ts).
  *
  * This module is pure: the Obsidian imports are types only, so the validation and
  * the registry are unit-tested.
@@ -38,7 +39,7 @@ export interface PagewiseToolbarItem {
   readingView?: boolean;
 }
 
-/** What `app.plugins.getPlugin("pagewise").api` holds. */
+/** The API object the ready event carries: frozen, and inert after Pagewise unloads. */
 export interface PagewiseApi {
   readonly version: 1;
   /** Adds a toolbar item and returns the function that removes it. Never throws. */
@@ -47,15 +48,14 @@ export interface PagewiseApi {
   refreshToolbar(): void;
 }
 
-/** The workspace event Pagewise triggers with its API on load and on request, and with null on unload. */
-export const API_EVENT = "pagewise:api";
+/** Pagewise triggers this workspace event with its API once the API is usable, and again on every request. */
+export const READY_EVENT = "pagewise:ready";
 
-/**
- * The workspace event another plugin triggers to ask for the API; Pagewise answers
- * with API_EVENT. Together they let a plugin that uses only Obsidian's public API
- * connect in either load order, without reading Pagewise's plugin instance.
- */
+/** Another plugin triggers this workspace event to ask Pagewise to send the ready event again. */
 export const REQUEST_EVENT = "pagewise:request";
+
+/** Pagewise triggers this workspace event, with no payload, first thing when it unloads. */
+export const UNLOAD_EVENT = "pagewise:unload";
 
 const MAX_ID = 200;
 const MAX_LABEL = 120;

@@ -1,5 +1,6 @@
-import { debounce, Notice, Plugin, type Events } from "obsidian";
-import { API_EVENT, REQUEST_EVENT, type PagewiseApi } from "./toolbar/extensionApi";
+import { debounce, Notice, Plugin } from "obsidian";
+import type { PagewiseApi } from "./toolbar/extensionApi";
+import { ApiAnnouncer } from "./toolbar/apiEvents";
 import { ToolbarRegistry, createApi } from "./toolbar/extensionRegistry";
 import { PaginationController } from "./pagination/controller";
 import { PropertiesSidebar } from "./properties/propertiesSidebar";
@@ -23,8 +24,13 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
   private propertiesSidebar!: PropertiesSidebar;
   private readonly mentionLinks = new MentionLinks(metadataLinkIndex(this.app));
   private readonly registry = new ToolbarRegistry();
-  /** The toolbar API other plugins use: `app.plugins.getPlugin("pagewise").api`. See TOOLBAR-API in Vibes. */
+  /**
+   * The toolbar API. Other plugins receive it with the `pagewise:ready` workspace
+   * event (see API.md in Vibes). Reading this field through the plugin instance
+   * goes through a private Obsidian member and is unsupported.
+   */
   readonly api: PagewiseApi = createApi(this.registry, () => this.toolbar.refreshState());
+  private readonly announcer = new ApiAnnouncer(this.app.workspace, this.api);
   /**
    * The Properties view and the linked-mentions panel update a moment after the
    * active note changes, so the inspector mark, the toolbar's pressed state and the
@@ -64,13 +70,14 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
       this.controller.applySettings(this.settings);
       this.syncToolbar();
       // Plugins that loaded before Pagewise learn here that its API is ready.
-      this.app.workspace.trigger(API_EVENT, this.api);
+      this.announcer.ready();
     });
   }
 
   onunload(): void {
+    // Partners hear first, while their removers still work, then the API turns inert.
+    this.announcer.unload();
     this.registry.close();
-    this.app.workspace.trigger(API_EVENT, null);
     this.syncSettled.cancel();
     this.rebuildForExtensions.cancel();
     this.controller.dispose();
@@ -129,8 +136,8 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
       })
     );
     this.registerEvent(workspace.on("css-change", () => this.controller.requestLayout()));
-    // A plugin that loaded after Pagewise asks for the toolbar API; Pagewise answers.
-    this.registerEvent((workspace as Events).on(REQUEST_EVENT, () => workspace.trigger(API_EVENT, this.api)));
+    // A plugin that loaded after Pagewise asks for the toolbar API; Pagewise answers once it is live.
+    this.registerEvent(this.announcer.listen());
     // Fires when a sidebar opens or closes, which changes what Properties shows.
     this.registerEvent(workspace.on("resize", () => this.syncSettled()));
     this.registerEvent(this.app.vault.on("rename", () => this.syncSettled()));
