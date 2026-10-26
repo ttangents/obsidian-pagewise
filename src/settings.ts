@@ -9,6 +9,8 @@ import { PAGE_SIZES, type PageSizeId } from "./pagination/pageSizes";
 export type ToggleScope = "note" | "global";
 export type PropertiesMode = "sidebar" | "collapse" | "none";
 export type ToolbarScope = "paginated" | "all";
+/** "cards": Pagewise draws callouts as cards in paginated notes. "theme": the theme draws them. */
+export type CalloutStyle = "cards" | "theme";
 
 /** A toolbar button the user added: a command from the command palette and its icon. */
 export interface CommandButton {
@@ -34,6 +36,8 @@ export interface PagewiseSettings {
   gapPx: number;
   /** What happens to the in-note Properties panel while a pane is paginated. */
   propertiesMode: PropertiesMode;
+  /** How callouts look in paginated notes (D25). */
+  calloutStyle: CalloutStyle;
   /** The canvas around the sheets: plain, or one of the Home Cards patterns. */
   background: BackgroundId;
   /** Which panes carry the toolbar: paginated ones (default) or every Markdown pane. */
@@ -51,6 +55,7 @@ export const DEFAULT_SETTINGS: PagewiseSettings = {
   marginMm: WORD_MARGIN_MM,
   gapPx: 24,
   propertiesMode: "sidebar",
+  calloutStyle: "cards",
   background: "plain",
   toolbarScope: "paginated",
   hiddenControls: [],
@@ -77,6 +82,7 @@ export function normalizeSettings(raw: unknown): PagewiseSettings {
     marginMm: number(data.marginMm, 0, 100, d.marginMm),
     gapPx: number(data.gapPx, 0, 200, d.gapPx),
     propertiesMode: oneOf(data.propertiesMode, ["sidebar", "collapse", "none"], d.propertiesMode),
+    calloutStyle: oneOf(data.calloutStyle, ["cards", "theme"], d.calloutStyle),
     background: oneOf(data.background, BACKGROUND_IDS, d.background),
     toolbarScope: oneOf(data.toolbarScope, ["paginated", "all"], d.toolbarScope),
     hiddenControls: idList(data.hiddenControls),

@@ -507,6 +507,107 @@
   color: var(--text-normal);
 }
 
+/* ---------- Callouts as cards (D25) ----------
+ * In a paginated pane with "Pagewise cards" chosen, callouts sit on a card like the
+ * mention cards: the shared card fill, a hairline border and rounded corners, the
+ * callout's own colour on its icon and on a thin accent along the left edge, a
+ * semibold title in text colour and the body in muted text. The theme still sets
+ * fonts and every colour, including each callout type's. Pagewise sets the shape
+ * through Obsidian's callout variables and the few properties themes commonly set
+ * directly, one level more specific than a typical theme rule. */
+.workspace-leaf-content[data-type="markdown"].pagewise-callout-cards :is(.markdown-preview-view, .markdown-source-view) .callout {
+  --callout-radius: var(--pagewise-radius-card);
+  --callout-border-width: 1px;
+  --callout-padding: 12px 16px 13px 18px;
+  --callout-blend-mode: normal;
+  --callout-title-color: var(--text-normal);
+  --callout-title-size: inherit;
+  --callout-title-weight: var(--font-semibold, 600);
+  --callout-title-padding: 0;
+  --callout-content-padding: 0;
+  --callout-content-background: transparent;
+  margin-inline: 0;
+  padding: var(--callout-padding);
+  border: 1px solid var(--pagewise-hairline);
+  border-radius: var(--callout-radius);
+  background-color: var(--pagewise-card-bg);
+  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--callout-color) 85%, transparent);
+  mix-blend-mode: normal;
+  font-size: inherit;
+  color: var(--text-muted);
+}
+
+/* Reading view spaces callouts like paragraphs; Live Preview spaces its blocks itself. */
+.workspace-leaf-content[data-type="markdown"].pagewise-callout-cards .markdown-preview-view .callout {
+  margin-block: 1.25em;
+}
+
+.workspace-leaf-content[data-type="markdown"].pagewise-callout-cards .markdown-source-view .callout {
+  margin-block: 0;
+}
+
+.workspace-leaf-content[data-type="markdown"].pagewise-callout-cards :is(.markdown-preview-view, .markdown-source-view) .callout-title {
+  align-items: flex-start;
+  gap: var(--size-4-2);
+  margin: 0;
+  color: var(--callout-color);
+  line-height: var(--line-height-tight);
+}
+
+.workspace-leaf-content[data-type="markdown"].pagewise-callout-cards :is(.markdown-preview-view, .markdown-source-view) .callout-title-inner {
+  color: var(--text-normal);
+  font-weight: var(--font-semibold, 600);
+}
+
+/* The icon carries the callout's colour; some themes hide it, so it shows again. */
+.workspace-leaf-content[data-type="markdown"].pagewise-callout-cards :is(.markdown-preview-view, .markdown-source-view) .callout-icon {
+  display: flex;
+}
+
+.workspace-leaf-content[data-type="markdown"].pagewise-callout-cards :is(.markdown-preview-view, .markdown-source-view) .callout-icon .svg-icon {
+  width: 16px;
+  height: 16px;
+  color: var(--callout-color);
+}
+
+.workspace-leaf-content[data-type="markdown"].pagewise-callout-cards :is(.markdown-preview-view, .markdown-source-view) .callout-fold {
+  color: var(--text-faint);
+}
+
+.workspace-leaf-content[data-type="markdown"].pagewise-callout-cards :is(.markdown-preview-view, .markdown-source-view) .callout-content {
+  margin-top: var(--size-4-2);
+  font-size: 0.95em;
+  line-height: 1.55;
+}
+
+.workspace-leaf-content[data-type="markdown"].pagewise-callout-cards :is(.markdown-preview-view, .markdown-source-view) .callout-content > :first-child {
+  margin-top: 0;
+}
+
+.workspace-leaf-content[data-type="markdown"].pagewise-callout-cards :is(.markdown-preview-view, .markdown-source-view) .callout-content > :last-child {
+  margin-bottom: 0;
+}
+
+/* A callout inside a callout, or inside a mention card, keeps only its accent line,
+ * so a card never sits inside a card. */
+.workspace-leaf-content[data-type="markdown"].pagewise-callout-cards :is(.markdown-preview-view, .markdown-source-view) .callout .callout,
+.workspace-leaf-content[data-type="markdown"].pagewise-callout-cards :is(.markdown-preview-view, .markdown-source-view) .pagewise-mention-passage .callout {
+  margin-block: 0.75em;
+  padding: 0 0 0 14px;
+  border: 0;
+  border-radius: 0;
+  background-color: transparent;
+  box-shadow: inset 2px 0 0 color-mix(in srgb, var(--callout-color) 75%, transparent);
+}
+
+.workspace-leaf-content[data-type="markdown"].pagewise-callout-cards :is(.markdown-preview-view, .markdown-source-view) .pagewise-mention-passage .callout:first-child {
+  margin-top: 0;
+}
+
+.workspace-leaf-content[data-type="markdown"].pagewise-callout-cards :is(.markdown-preview-view, .markdown-source-view) .pagewise-mention-passage .callout:last-child {
+  margin-bottom: 0;
+}
+
 /* ---------- Linked mentions (mention footer) ----------
  * In a paginated pane Pagewise draws the linked mentions itself (mentions/), inside
  * Obsidian's in-document backlinks container, and Obsidian's own panel there gives

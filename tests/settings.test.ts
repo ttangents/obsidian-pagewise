@@ -26,6 +26,7 @@ test("a 0.32 data.json loses only the legacy toolbarDirection key", () => {
     marginMm: 20,
     gapPx: 32,
     propertiesMode: "collapse",
+    calloutStyle: "theme",
     toolbarDirection: "vertical",
     background: "leaves",
     toolbarScope: "all",
@@ -59,4 +60,10 @@ test("toolbar settings keep valid values and drop malformed ones", () => {
   assert.deepEqual(settings.hiddenControls, ["bold", "demo:hello"]);
   assert.deepEqual(settings.commandButtons, [{ commandId: "daily-notes", icon: "calendar" }]);
   assert.equal(normalizeSettings({ toolbarScope: "everywhere" }).toolbarScope, "paginated");
+});
+
+test("callouts default to Pagewise cards, and only cards or theme are kept", () => {
+  assert.equal(normalizeSettings({}).calloutStyle, "cards");
+  assert.equal(normalizeSettings({ calloutStyle: "theme" }).calloutStyle, "theme");
+  assert.equal(normalizeSettings({ calloutStyle: "boxes" }).calloutStyle, "cards");
 });

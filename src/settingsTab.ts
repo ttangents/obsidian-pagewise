@@ -18,7 +18,7 @@ export interface SettingsHost {
 const DEFAULT_COMMAND_ICON = "terminal-square";
 
 /** Settings a control binds to directly. The lists have rows of their own. */
-const SCALAR_KEYS = ["scope", "pageSize", "marginMm", "gapPx", "propertiesMode", "toolbarScope"] as const;
+const SCALAR_KEYS = ["scope", "pageSize", "marginMm", "gapPx", "propertiesMode", "calloutStyle", "toolbarScope"] as const;
 type ScalarKey = (typeof SCALAR_KEYS)[number];
 
 /** A toolbar control's visibility toggle binds to this virtual key; true means shown. */
@@ -93,6 +93,11 @@ export class PagewiseSettingTab extends PluginSettingTab {
           key: "propertiesMode",
           options: { sidebar: "Move to sidebar", collapse: "Collapse in place", none: "Leave unchanged" },
         },
+      },
+      {
+        name: "Callouts in paginated view",
+        desc: "Pagewise cards: callouts sit on a card like the linked mentions, with the callout's colour on its icon and left edge; your theme still sets fonts and colours. Theme: callouts look as your theme draws them.",
+        control: { type: "dropdown", key: "calloutStyle", options: { cards: "Pagewise cards", theme: "As the theme draws them" } },
       },
       {
         name: "Gap between sheets (px)",

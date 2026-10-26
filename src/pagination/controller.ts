@@ -8,6 +8,8 @@ import { DOM } from "../obsidianDom";
 
 const ACTIVE_CLASS = "pagewise-active";
 const HIDE_PROPS_CLASS = "pagewise-props-hidden";
+/** Marks a paginated pane whose callouts Pagewise draws as cards (D25). */
+const CALLOUT_CARDS_CLASS = "pagewise-callout-cards";
 const RELAYOUT_DELAY_MS = 120;
 /** Page geometry, set on each paginated pane's container so pop-out windows get it too. */
 const GEOMETRY_VARS = ["--pagewise-page-width", "--pagewise-page-height", "--pagewise-margin", "--pagewise-gap"] as const;
@@ -64,7 +66,7 @@ export class PaginationController {
     this.active.forEach((view) => this.setGeometry(view));
     if (settings.scope === "global") this.syncGlobal();
     if (settings.propertiesMode !== "collapse") this.properties.restore([...this.active]);
-    this.active.forEach((view) => this.applyPropertiesMode(view));
+    this.active.forEach((view) => this.applyPresentation(view));
     this.requestLayout();
   }
 
@@ -127,14 +129,14 @@ export class PaginationController {
     this.notes.set(view, view.file);
     view.containerEl.classList.add(ACTIVE_CLASS);
     this.setGeometry(view);
-    this.applyPropertiesMode(view);
+    this.applyPresentation(view);
     this.layoutActiveViews();
   }
 
   private deactivate(view: MarkdownView): void {
     if (!this.active.delete(view)) return;
     this.notes.delete(view);
-    view.containerEl.classList.remove(ACTIVE_CLASS, HIDE_PROPS_CLASS);
+    view.containerEl.classList.remove(ACTIVE_CLASS, HIDE_PROPS_CLASS, CALLOUT_CARDS_CLASS);
     GEOMETRY_VARS.forEach((name) => view.containerEl.style.removeProperty(name));
     this.properties.restore([view]);
     const sizer = this.sizerOf(view);
@@ -166,9 +168,13 @@ export class PaginationController {
     });
   }
 
-  /** Marks the pane so the stylesheet can drop the in-note Properties panel in sidebar mode. */
-  private applyPropertiesMode(view: MarkdownView): void {
+  /**
+   * Marks the pane for the stylesheet's settings-driven presentation: dropping the
+   * in-note Properties panel in sidebar mode, and drawing callouts as cards.
+   */
+  private applyPresentation(view: MarkdownView): void {
     view.containerEl.classList.toggle(HIDE_PROPS_CLASS, this.settings.propertiesMode === "sidebar");
+    view.containerEl.classList.toggle(CALLOUT_CARDS_CLASS, this.settings.calloutStyle === "cards");
   }
 
   /** Puts the page geometry on the pane's container as CSS variables; deactivate() removes them. */
