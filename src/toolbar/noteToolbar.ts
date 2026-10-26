@@ -1,6 +1,5 @@
 import { MarkdownView, Menu as ObsidianMenu, setIcon, setTooltip, type App, type Menu } from "obsidian";
 import type { BackgroundId } from "../appearance/backgrounds";
-import type { ReadingDepth } from "../integrations/semanticZoom";
 import { executeCommand, menuIsEmpty } from "../obsidianInternals";
 import type { CommandButton } from "../settings";
 import { markdownViews } from "../workspace";
@@ -28,8 +27,6 @@ export interface ToolbarActions {
   /** The canvas background, shared by every paginated pane. */
   background(): BackgroundId;
   setBackground(id: BackgroundId): void;
-  /** Semantic Zoom's reading depths, or null while it is not installed and ready. */
-  readingDepth(): ReadingDepth | null;
   /** A command's name in the command palette, or null while no enabled plugin provides it. */
   commandName(commandId: string): string | null;
   runCommand(commandId: string): void;
@@ -54,7 +51,6 @@ export const BUILT_IN_CONTROLS: readonly { id: string; label: string }[] = [
   { id: "link", label: "Insert link" },
   { id: "table", label: "Table" },
   { id: "image", label: "Insert image" },
-  { id: "reading-depth", label: "Reading depth (with Semantic Zoom)" },
   { id: "background", label: "Background" },
   { id: "properties", label: "Properties" },
 ];
@@ -160,7 +156,6 @@ class PaneToolbar {
   private readonly groupsEl: HTMLElement;
   private readonly moreButton: HTMLElement;
   private readonly propertiesButton: HTMLElement;
-  private readonly readingDepthButton: HTMLElement;
   private readonly palette: BackgroundPalette;
   private readonly placed: Placed[] = [];
   private readonly observer: ResizeObserver;
@@ -186,7 +181,7 @@ class PaneToolbar {
     this.el.addEventListener("mousedown", (event) => event.preventDefault());
     this.el.addEventListener("keydown", (event) => this.onKeydown(event));
     this.el.addEventListener("focusin", (event) => this.setTabStop(event.target as HTMLElement));
-    // Backstop for a companion plugin that changed without announcing it.
+    // Backstop for another plugin whose state changed without a refreshToolbar call.
     this.el.addEventListener("pointerenter", () => this.refreshState());
     this.el.addEventListener("contextmenu", (event) => this.showCustomizeMenu(event));
 
@@ -212,8 +207,6 @@ class PaneToolbar {
     this.propertiesButton.classList.add("pagewise-toolbar-properties");
     this.propertiesButton.setAttribute("aria-pressed", "false");
     setIcon(this.propertiesButton, resolveIcon(["info"]));
-    this.readingDepthButton = this.menuButton("Reading depth", ["layers", "list-tree"], (menu) => this.fillReadingDepth(menu));
-    this.readingDepthButton.classList.add("pagewise-toolbar-reading-depth", UNAVAILABLE_CLASS);
     const backgroundButton = this.button("Background", () => {
       if (this.palette.isOpen) this.palette.close(false);
       else this.palette.open();
@@ -227,7 +220,6 @@ class PaneToolbar {
       choose: (id) => this.actions.setBackground(id),
     });
     const trailingControls: [string, HTMLElement][] = [
-      ["reading-depth", this.readingDepthButton],
       ["background", backgroundButton],
       ["properties", this.propertiesButton],
     ];
@@ -257,7 +249,6 @@ class PaneToolbar {
   refreshState(): void {
     this.propertiesButton.setAttribute("aria-pressed", String(this.actions.propertiesShown(this.view)));
     this.palette.paint();
-    this.readingDepthButton.classList.toggle(UNAVAILABLE_CLASS, !this.readingDepthAvailable());
     // Availability can change the bar's contents, so the fit runs again.
     this.fit();
   }
@@ -273,29 +264,6 @@ class PaneToolbar {
         setTooltip(button, label, { placement: "bottom" });
       }
     });
-  }
-
-  /** Reading depth shows for a Markdown note while Semantic Zoom is installed and ready. */
-  private readingDepthAvailable(): boolean {
-    return this.view.file?.extension === "md" && this.actions.readingDepth() !== null;
-  }
-
-  /** One entry per depth; each opens the note in a new tab near the cursor, so the pane stays as it is. */
-  private fillReadingDepth(menu: Menu): void {
-    const depth = this.actions.readingDepth();
-    const file = this.view.file;
-    if (!depth || !file) return;
-    const line = this.view.getMode() === "source" ? this.view.editor.getCursor().line : undefined;
-    depth.levels.forEach(({ level, name, hint }) =>
-      addEntry(menu, {
-        title: `${name}: ${hint}`,
-        icon: ["layers"],
-        action: () => {
-          const leaf = this.app.workspace.getLeaf("tab");
-          depth.open(file, level, leaf, line).catch((error: unknown) => console.warn("Pagewise: Semantic Zoom could not open the note", error));
-        },
-      })
-    );
   }
 
   destroy(): void {

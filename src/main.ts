@@ -1,4 +1,4 @@
-import { debounce, Notice, Plugin, type Events } from "obsidian";
+import { debounce, Notice, Plugin } from "obsidian";
 import { API_EVENT, type PagewiseApi } from "./toolbar/extensionApi";
 import { ToolbarRegistry, createApi } from "./toolbar/extensionRegistry";
 import { PaginationController } from "./pagination/controller";
@@ -6,8 +6,7 @@ import { PropertiesSidebar } from "./properties/propertiesSidebar";
 import { normalizeSettings, type PagewiseSettings } from "./settings";
 import { PagewiseSettingTab, type SettingsHost } from "./settingsTab";
 import { MentionLinks } from "./backlinks/mentionLinks";
-import { readingDepthFrom } from "./integrations/semanticZoom";
-import { executeCommand, findCommand, getPlugin, listCommands, openSettingTab, type PaletteCommand } from "./obsidianInternals";
+import { executeCommand, findCommand, listCommands, openSettingTab, type PaletteCommand } from "./obsidianInternals";
 import { NoteToolbar } from "./toolbar/noteToolbar";
 import { PATTERN_ATTRIBUTE } from "./appearance/backgrounds";
 import { markdownViews } from "./workspace";
@@ -42,7 +41,6 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
       propertiesShown: (view) => this.propertiesSidebar.isShownFor(view.file),
       background: () => this.settings.background,
       setBackground: (id) => void this.updateSettings({ background: id }),
-      readingDepth: () => readingDepthFrom(getPlugin(this.app, "semantic-zoom")),
       commandName: (id) => findCommand(this.app, id)?.name ?? null,
       runCommand: (id) => executeCommand(this.app, id),
       openSettings: () => {
@@ -126,9 +124,6 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
       })
     );
     this.registerEvent(workspace.on("css-change", () => this.controller.requestLayout()));
-    // Semantic Zoom announces when its API appears or goes away (enabled, reloaded, disabled), so the
-    // Reading depth button follows it without waiting for the next layout change.
-    this.registerEvent((workspace as Events).on("semantic-zoom:api", () => this.toolbar.refreshState()));
     // Fires when a sidebar opens or closes, which changes what Properties shows.
     this.registerEvent(workspace.on("resize", () => this.syncSettled()));
     this.registerEvent(this.app.vault.on("rename", () => this.syncSettled()));

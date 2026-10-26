@@ -249,9 +249,6 @@ function setMetadataCollapsed(view, collapsed) {
   editor.setCollapse(collapsed, false);
   return true;
 }
-function getPlugin(app, id) {
-  return app.plugins?.getPlugin?.(id) ?? void 0;
-}
 function listCommands(app) {
   const commands = app.commands?.listCommands?.();
   return Array.isArray(commands) ? commands.filter(isCommand) : [];
@@ -1398,7 +1395,6 @@ var BUILT_IN_CONTROLS = [
   { id: "link", label: "Insert link" },
   { id: "table", label: "Table" },
   { id: "image", label: "Insert image" },
-  { id: "reading-depth", label: "Reading depth (with Semantic Zoom)" },
   { id: "background", label: "Background" },
   { id: "properties", label: "Properties" }
 ];
@@ -1493,8 +1489,6 @@ var PaneToolbar = class {
     this.propertiesButton.classList.add("pagewise-toolbar-properties");
     this.propertiesButton.setAttribute("aria-pressed", "false");
     (0, import_obsidian6.setIcon)(this.propertiesButton, resolveIcon(["info"]));
-    this.readingDepthButton = this.menuButton("Reading depth", ["layers", "list-tree"], (menu) => this.fillReadingDepth(menu));
-    this.readingDepthButton.classList.add("pagewise-toolbar-reading-depth", UNAVAILABLE_CLASS);
     const backgroundButton = this.button("Background", () => {
       if (this.palette.isOpen) this.palette.close(false);
       else this.palette.open();
@@ -1508,7 +1502,6 @@ var PaneToolbar = class {
       choose: (id) => this.actions.setBackground(id)
     });
     const trailingControls = [
-      ["reading-depth", this.readingDepthButton],
       ["background", backgroundButton],
       ["properties", this.propertiesButton]
     ];
@@ -1533,7 +1526,6 @@ var PaneToolbar = class {
   refreshState() {
     this.propertiesButton.setAttribute("aria-pressed", String(this.actions.propertiesShown(this.view)));
     this.palette.paint();
-    this.readingDepthButton.classList.toggle(UNAVAILABLE_CLASS, !this.readingDepthAvailable());
     this.fit();
   }
   /** Re-reads what can change after the bar is built: availability, pressed state, labels. */
@@ -1547,27 +1539,6 @@ var PaneToolbar = class {
         (0, import_obsidian6.setTooltip)(button, label, { placement: "bottom" });
       }
     });
-  }
-  /** Reading depth shows for a Markdown note while Semantic Zoom is installed and ready. */
-  readingDepthAvailable() {
-    return this.view.file?.extension === "md" && this.actions.readingDepth() !== null;
-  }
-  /** One entry per depth; each opens the note in a new tab near the cursor, so the pane stays as it is. */
-  fillReadingDepth(menu) {
-    const depth = this.actions.readingDepth();
-    const file = this.view.file;
-    if (!depth || !file) return;
-    const line = this.view.getMode() === "source" ? this.view.editor.getCursor().line : void 0;
-    depth.levels.forEach(
-      ({ level, name, hint }) => addEntry(menu, {
-        title: `${name}: ${hint}`,
-        icon: ["layers"],
-        action: () => {
-          const leaf = this.app.workspace.getLeaf("tab");
-          depth.open(file, level, leaf, line).catch((error) => console.warn("Pagewise: Semantic Zoom could not open the note", error));
-        }
-      })
-    );
   }
   destroy() {
     this.observer.disconnect();
@@ -2178,24 +2149,6 @@ function restore(panel) {
   });
 }
 
-// src/integrations/semanticZoom.ts
-function isLevel(value) {
-  const v = value;
-  return !!v && typeof v.level === "number" && typeof v.name === "string" && typeof v.hint === "string";
-}
-function readingDepthFrom(plugin) {
-  const api = plugin?.api;
-  if (!api || api.version !== 1 || api.available !== true || typeof api.open !== "function") return null;
-  if (!Array.isArray(api.levels)) return null;
-  const levels = api.levels.filter(isLevel);
-  if (levels.length === 0) return null;
-  const open = api.open;
-  return {
-    levels,
-    open: (file, level, leaf, line) => open.call(api, file, { level, leaf, line })
-  };
-}
-
 // src/main.ts
 var PagewisePlugin = class extends import_obsidian8.Plugin {
   constructor() {
@@ -2220,7 +2173,6 @@ var PagewisePlugin = class extends import_obsidian8.Plugin {
       propertiesShown: (view) => this.propertiesSidebar.isShownFor(view.file),
       background: () => this.settings.background,
       setBackground: (id) => void this.updateSettings({ background: id }),
-      readingDepth: () => readingDepthFrom(getPlugin(this.app, "semantic-zoom")),
       commandName: (id) => findCommand(this.app, id)?.name ?? null,
       runCommand: (id) => executeCommand(this.app, id),
       openSettings: () => {
@@ -2295,7 +2247,6 @@ var PagewisePlugin = class extends import_obsidian8.Plugin {
       })
     );
     this.registerEvent(workspace.on("css-change", () => this.controller.requestLayout()));
-    this.registerEvent(workspace.on("semantic-zoom:api", () => this.toolbar.refreshState()));
     this.registerEvent(workspace.on("resize", () => this.syncSettled()));
     this.registerEvent(this.app.vault.on("rename", () => this.syncSettled()));
     this.registerDomEvent(window, "resize", () => this.controller.requestLayout());
