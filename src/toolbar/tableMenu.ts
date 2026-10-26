@@ -1,5 +1,4 @@
-import type { App, Editor, Menu } from "obsidian";
-import { executeCommand } from "../obsidianInternals";
+import type { Editor, Menu } from "obsidian";
 import { applyTableEdit, deleteTable, locateTable, type TableContext } from "../tables/tableEditor";
 import {
   deleteColumn,
@@ -15,7 +14,7 @@ import {
   type ColumnAlignment,
   type TableModel,
 } from "../tables/tableModel";
-import { addEntry, addHotkeyHint, addSubmenu, type MenuEntry } from "./menus";
+import { addEntry, addHotkeyHint, addSubmenu, type CommandRunner, type MenuEntry } from "./menus";
 
 /**
  * The table menu, built fresh on every open so it reflects where the cursor is:
@@ -31,7 +30,7 @@ type RowTransform = (model: TableModel, bodyRow: number) => TableModel | null;
 const NEW_TABLE_COMMAND = "editor:insert-table";
 const TRASH: readonly string[] = ["trash-2", "trash"];
 
-export function fillTableMenu(menu: Menu, app: App, editor: Editor): void {
+export function fillTableMenu(menu: Menu, commands: CommandRunner, editor: Editor): void {
   const located = locateTable(editor);
   const noTable = located === null;
   const noBodyRow = located?.context.bodyRow == null;
@@ -49,9 +48,9 @@ export function fillTableMenu(menu: Menu, app: App, editor: Editor): void {
   const newTable = addEntry(menu, {
     title: "New table",
     icon: ["table", "grid-3x3"],
-    action: () => executeCommand(app, NEW_TABLE_COMMAND),
+    action: () => commands.runCommand(NEW_TABLE_COMMAND),
   });
-  addHotkeyHint(app, newTable, NEW_TABLE_COMMAND);
+  addHotkeyHint(commands, newTable, NEW_TABLE_COMMAND);
   menu.addSeparator();
 
   addSubmenu(

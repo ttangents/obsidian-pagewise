@@ -1,13 +1,13 @@
 import { MarkdownView, Menu as ObsidianMenu, setIcon, setTooltip, type App, type Menu } from "obsidian";
 import type { BackgroundId } from "../appearance/backgrounds";
-import { executeCommand, menuIsEmpty } from "../obsidianInternals";
+import { menuIsEmpty } from "../obsidianInternals";
 import type { CommandButton } from "../settings";
 import { markdownViews } from "../workspace";
 import { fillBlocksMenu, fillHeadingMenu } from "./formatMenus";
 import { registerCustomIcons, resolveIcon, type IconChoice } from "./icons";
 import { HEADING_LEVELS } from "./markdownActions";
 import { BackgroundPalette } from "./backgroundPalette";
-import { addEntry, createMenu, whenHidden } from "./menus";
+import { addEntry, createMenu, whenHidden, type CommandRunner } from "./menus";
 import { fillTableMenu } from "./tableMenu";
 import type { PagewiseToolbarContext, PagewiseToolbarItem } from "./extensionApi";
 import type { ToolbarRegistry } from "./extensionRegistry";
@@ -18,8 +18,8 @@ const OVERFLOWED_CLASS = "is-overflowed";
 const EMPTY_CLASS = "is-empty";
 const UNAVAILABLE_CLASS = "is-unavailable";
 
-/** What the toolbar asks of its owner beyond formatting. */
-export interface ToolbarActions {
+/** What the toolbar asks of its owner: commands (the only way it runs one), Properties, and the background. */
+export interface ToolbarActions extends CommandRunner {
   /** Shows or hides the Properties view for the pane's note. The pane is already active. */
   toggleProperties(view: MarkdownView): Promise<void>;
   /** True while a visible Properties view shows the pane's note. */
@@ -29,7 +29,6 @@ export interface ToolbarActions {
   setBackground(id: BackgroundId): void;
   /** A command's name in the command palette, or null while no enabled plugin provides it. */
   commandName(commandId: string): string | null;
-  runCommand(commandId: string): void;
   /** Opens Pagewise's settings, where the toolbar is customized. */
   openSettings(): void;
 }
@@ -284,8 +283,8 @@ class PaneToolbar {
    * The added groups leave for More first, right to left, then the built-in ranks.
    */
   private controlGroups(): { kind: GroupKind; controls: Control[] }[] {
-    const { app, view } = this;
-    const command = (id: string) => () => executeCommand(app, id);
+    const { actions, view } = this;
+    const command = (id: string) => () => actions.runCommand(id);
     const commands = this.config.commandButtons;
     const extensions = this.registry.items();
     return [
@@ -293,7 +292,7 @@ class PaneToolbar {
         kind: "editing",
         controls: [
           { id: "headings", label: "Headings", icon: ["heading"], overflowRank: 6, fill: (menu) => fillHeadingMenu(menu, view.editor) },
-          { id: "lists", label: "Lists and blocks", icon: ["list"], overflowRank: 5, fill: (menu) => fillBlocksMenu(menu, app, view.editor) },
+          { id: "lists", label: "Lists and blocks", icon: ["list"], overflowRank: 5, fill: (menu) => fillBlocksMenu(menu, actions, view.editor) },
         ],
       },
       {
@@ -308,7 +307,7 @@ class PaneToolbar {
         kind: "editing",
         controls: [
           { id: "link", label: "Insert link", icon: ["link-2", "link"], overflowRank: 3, run: command("editor:insert-link") },
-          { id: "table", label: "Table", icon: ["table", "grid-3x3"], overflowRank: 2, fill: (menu) => fillTableMenu(menu, app, view.editor) },
+          { id: "table", label: "Table", icon: ["table", "grid-3x3"], overflowRank: 2, fill: (menu) => fillTableMenu(menu, actions, view.editor) },
           { id: "image", label: "Insert image", icon: ["image-plus", "image"], overflowRank: 1, run: command("editor:attach-file") },
         ],
       },

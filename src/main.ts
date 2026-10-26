@@ -6,7 +6,7 @@ import { PropertiesSidebar } from "./properties/propertiesSidebar";
 import { normalizeSettings, type PagewiseSettings } from "./settings";
 import { PagewiseSettingTab, type SettingsHost } from "./settingsTab";
 import { MentionLinks, metadataLinkIndex } from "./backlinks/mentionLinks";
-import { executeCommand, findCommand, listCommands, openSettingTab, type PaletteCommand } from "./obsidianInternals";
+import { executeCommand, findCommand, hotkeyFor, listCommands, openSettingTab, type PaletteCommand } from "./obsidianInternals";
 import { NoteToolbar } from "./toolbar/noteToolbar";
 import { PATTERN_ATTRIBUTE } from "./appearance/backgrounds";
 import { markdownViews } from "./workspace";
@@ -43,8 +43,9 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
       propertiesShown: (view) => this.propertiesSidebar.isShownFor(view.file),
       background: () => this.settings.background,
       setBackground: (id) => void this.updateSettings({ background: id }),
-      commandName: (id) => findCommand(this.app, id)?.name ?? null,
+      commandName: (id) => this.commandName(id),
       runCommand: (id) => executeCommand(this.app, id),
+      commandHotkey: (id) => hotkeyFor(this.app, id),
       openSettings: () => {
         if (!openSettingTab(this.app, this.manifest.id)) new Notice("Open settings, then Pagewise, to customize the toolbar.");
       },

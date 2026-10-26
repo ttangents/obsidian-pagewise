@@ -1,11 +1,18 @@
-import { Menu, setIcon, type App, type MenuItem } from "obsidian";
-import { hotkeyFor, menuDom, menuItemDom } from "../obsidianInternals";
+import { Menu, setIcon, type MenuItem } from "obsidian";
+import { menuDom, menuItemDom } from "../obsidianInternals";
 import { resolveIcon, type IconChoice } from "./icons";
 
 /**
  * Menu plumbing shared by every toolbar menu: Pagewise-styled menus, right-opening
  * submenus, and hotkey hints. Menu contents live in their own modules.
  */
+
+/** How the toolbar and its menus run Obsidian commands; main.ts supplies it. */
+export interface CommandRunner {
+  runCommand(commandId: string): void;
+  /** The user's hotkey for a command, formatted by Obsidian, or "" when unbound. */
+  commandHotkey(commandId: string): string;
+}
 
 /** One pickable entry in a submenu. */
 export interface MenuEntry {
@@ -110,8 +117,8 @@ export function addSubmenu(menu: Menu, title: string, icon: IconChoice, entries:
 }
 
 /** Appends the user's actual hotkey for the command, Bear-style; nothing when unbound. */
-export function addHotkeyHint(app: App, item: MenuItem, commandId: string): void {
-  const hint = hotkeyFor(app, commandId);
+export function addHotkeyHint(commands: CommandRunner, item: MenuItem, commandId: string): void {
+  const hint = commands.commandHotkey(commandId);
   const dom = menuItemDom(item);
   if (!hint || !dom) return;
   dom.createSpan({ cls: "pagewise-hotkey", text: hint });

@@ -1,8 +1,7 @@
-import type { App, Editor, Menu } from "obsidian";
-import { executeCommand } from "../obsidianInternals";
+import type { Editor, Menu } from "obsidian";
 import { SEPARATOR_ICON, headingIcon, type IconChoice } from "./icons";
 import { HEADING_LEVELS, insertCallout, insertSeparator, setHeading } from "./markdownActions";
-import { addEntry, addHotkeyHint, addSubmenu } from "./menus";
+import { addEntry, addHotkeyHint, addSubmenu, type CommandRunner } from "./menus";
 
 /** Contents of the Headings and Lists-and-blocks menus. */
 
@@ -37,10 +36,10 @@ export function fillHeadingMenu(menu: Menu, editor: Editor): void {
   );
 }
 
-export function fillBlocksMenu(menu: Menu, app: App, editor: Editor): void {
+export function fillBlocksMenu(menu: Menu, commands: CommandRunner, editor: Editor): void {
   BLOCK_COMMANDS.forEach(({ title, icon, commandId }) => {
-    const item = addEntry(menu, { title, icon, action: () => executeCommand(app, commandId) });
-    addHotkeyHint(app, item, commandId);
+    const item = addEntry(menu, { title, icon, action: () => commands.runCommand(commandId) });
+    addHotkeyHint(commands, item, commandId);
   });
   const calloutEntries = (inline: boolean) =>
     CALLOUT_TYPES.map(({ id, title, icon }) => ({ title, icon, action: () => insertCallout(editor, id, inline) }));
