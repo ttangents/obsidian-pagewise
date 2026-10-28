@@ -1,7 +1,13 @@
+.DS_Store
 node_modules/
-src/appearance/tiles.generated.ts
 main.js
 styles.css
+dist/
+build/
+*.log
 CLAUDE.md
 AGENTS.md
-.DS_Store
+
+# Pagewise
+# Written by scripts/build-tiles.mjs from assets/tiles/ (D15)
+src/appearance/tiles.generated.ts

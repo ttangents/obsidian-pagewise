@@ -7,7 +7,7 @@ import { READY_EVENT, REQUEST_EVENT, UNLOAD_EVENT, type PagewiseApi } from "../s
 import { ToolbarRegistry, createApi } from "../src/toolbar/extensionRegistry";
 
 /** The checked-in contract consumers build against. A change here is a contract change. */
-const contract = JSON.parse(readFileSync("tests/contract/pagewise-api.json", "utf8")) as {
+const contract = JSON.parse(readFileSync("test/contract/pagewise-api.json", "utf8")) as {
   version: number;
   events: { ready: string; request: string; unload: string };
   methods: string[];
