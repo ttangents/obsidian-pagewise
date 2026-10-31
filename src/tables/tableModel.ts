@@ -13,6 +13,7 @@
 
 export type ColumnAlignment = "none" | "left" | "center" | "right";
 
+/** A parsed table: header cells, per-column alignments, body rows, and the source indent. */
 export interface TableModel {
   header: string[];
   alignments: ColumnAlignment[];
@@ -98,6 +99,7 @@ export function insertColumn(model: TableModel, index: number): TableModel {
   return { ...model, header, alignments, rows };
 }
 
+/** Removes the body row at index; null when the index is outside the body. */
 export function deleteRow(model: TableModel, index: number): TableModel | null {
   if (index < 0 || index >= model.rows.length) return null;
   return { ...model, rows: model.rows.filter((_, i) => i !== index) };
@@ -114,6 +116,7 @@ export function deleteColumn(model: TableModel, column: number): TableModel | nu
   };
 }
 
+/** Moves the row at index by delta rows; null when either position falls outside the body. */
 export function moveRow(model: TableModel, index: number, delta: number): TableModel | null {
   const target = index + delta;
   if (index < 0 || index >= model.rows.length || target < 0 || target >= model.rows.length) return null;
@@ -123,6 +126,7 @@ export function moveRow(model: TableModel, index: number, delta: number): TableM
   return { ...model, rows };
 }
 
+/** Moves the column at column by delta columns, header and every row together; null when either position is out of range. */
 export function moveColumn(model: TableModel, column: number, delta: number): TableModel | null {
   const target = column + delta;
   if (!validColumn(model, column) || target < 0 || target >= model.header.length) return null;
@@ -140,6 +144,7 @@ export function moveColumn(model: TableModel, column: number, delta: number): Ta
   };
 }
 
+/** Copies the body row at index directly below it; null when the index is outside the body. */
 export function duplicateRow(model: TableModel, index: number): TableModel | null {
   if (index < 0 || index >= model.rows.length) return null;
   const rows = [...model.rows];

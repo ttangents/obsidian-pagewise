@@ -8,6 +8,7 @@ export interface BlockGeometry {
   height: number;
 }
 
+/** What planLayout needs: the blocks' geometry plus one page's usable height and a break's cost. */
 export interface LayoutInput {
   blocks: BlockGeometry[];
   /** Usable height of one page: page height minus both vertical margins. */
@@ -16,6 +17,7 @@ export interface LayoutInput {
   breakHeight: number;
 }
 
+/** planLayout's answer: how much spacer to insert before each block, and the padding after the last. */
 export interface LayoutPlan {
   /** Spacer height to insert before each block; 0 means no break there. */
   breaksBefore: number[];

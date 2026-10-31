@@ -17,6 +17,7 @@ export interface TableContext {
   bodyRow: number | null;
 }
 
+/** A table located under the cursor: its line range, parsed model, and where the cursor sits in it. */
 export interface LocatedTable {
   startLine: number;
   endLine: number;
