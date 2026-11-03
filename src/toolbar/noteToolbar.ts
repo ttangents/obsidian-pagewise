@@ -4,8 +4,8 @@ import { menuIsEmpty, navigationDepth } from "../obsidianInternals";
 import type { CommandButton } from "../settings";
 import { markdownViews } from "../workspace";
 import { DOM } from "../obsidianDom";
-import { editingGroups, NAVIGATION_CONTROLS, TRAILING_CONTROLS, type ControlMenu } from "./controls";
-import { fillBlocksMenu, fillHeadingMenu } from "./formatMenus";
+import { editingGroups, NAVIGATION_CONTROLS, resolveControl, TRAILING_CONTROLS, type ControlMenu } from "./controls";
+import { fillBlocksMenu, fillHeadingMenu, fillHighlightMenu } from "./formatMenus";
 import { registerCustomIcons, resolveIcon, type IconChoice } from "./icons";
 import { HEADING_LEVELS } from "./markdownActions";
 import { BackgroundPalette } from "./backgroundPalette";
@@ -49,6 +49,7 @@ const MENUS: Record<ControlMenu, (menu: Menu, commands: CommandRunner, editor: E
   headings: (menu, _commands, editor) => fillHeadingMenu(menu, editor),
   blocks: fillBlocksMenu,
   table: fillTableMenu,
+  highlight: (menu, commands) => fillHighlightMenu(menu, commands),
 };
 
 /** The icon a command button or extension item falls back to when its own is missing. */
@@ -322,14 +323,17 @@ class PaneToolbar {
     const extensions = this.registry.items();
     const editing = editingGroups().map((group) => ({
       kind: "editing" as const,
-      controls: group.map(({ id, label, icon, overflowRank, command, menu }): Control => ({
-        id,
-        label,
-        icon,
-        overflowRank,
-        run: command === undefined ? undefined : () => actions.runCommand(command),
-        fill: menu === undefined ? undefined : (target: Menu) => MENUS[menu](target, actions, view.editor),
-      })),
+      controls: group.map((control): Control => {
+        const { command, menu } = resolveControl(control, (id) => actions.hasCommand(id));
+        return {
+          id: control.id,
+          label: control.label,
+          icon: control.icon,
+          overflowRank: control.overflowRank,
+          run: command === undefined ? undefined : () => actions.runCommand(command),
+          fill: menu === undefined ? undefined : (target: Menu) => MENUS[menu](target, actions, view.editor),
+        };
+      }),
     }));
     const navigation = {
       kind: "navigation" as const,

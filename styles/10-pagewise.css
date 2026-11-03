@@ -368,6 +368,14 @@
   font-size: var(--font-smallest, 0.85em);
 }
 
+/* The Highlight menu's colours take the theme's own colours. */
+.menu.pagewise-menu .pagewise-highlight-red .menu-item-icon { color: var(--color-red); }
+.menu.pagewise-menu .pagewise-highlight-orange .menu-item-icon { color: var(--color-orange); }
+.menu.pagewise-menu .pagewise-highlight-yellow .menu-item-icon { color: var(--color-yellow); }
+.menu.pagewise-menu .pagewise-highlight-green .menu-item-icon { color: var(--color-green); }
+.menu.pagewise-menu .pagewise-highlight-blue .menu-item-icon { color: var(--color-blue); }
+.menu.pagewise-menu .pagewise-highlight-purple .menu-item-icon { color: var(--color-purple); }
+
 /* Submenu indicator on entries that open a submenu, matching Obsidian's own. */
 .menu.pagewise-menu .pagewise-submenu-arrow {
   display: flex;

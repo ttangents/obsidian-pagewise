@@ -8,7 +8,7 @@ import type { IconChoice } from "./icons";
  */
 
 /** The menus the editing controls open; the toolbar supplies their contents. */
-export type ControlMenu = "headings" | "blocks" | "table";
+export type ControlMenu = "headings" | "blocks" | "table" | "highlight";
 
 /** A control in the editing groups, which Reading view hides because they need an editor. */
 export interface EditingControl {
@@ -57,7 +57,7 @@ export const EDITING_CONTROLS: readonly EditingControl[] = [
   { id: "lists", label: "Lists and blocks", icon: ["list"], group: 0, overflowRank: 5, menu: "blocks" },
   { id: "bold", label: "Bold", icon: ["bold"], group: 1, overflowRank: 8, command: "editor:toggle-bold" },
   { id: "italic", label: "Italic", icon: ["italic"], group: 1, overflowRank: 7, command: "editor:toggle-italics" },
-  { id: "highlight", label: "Highlight", icon: ["highlighter", "paintbrush"], group: 1, overflowRank: 4, command: "editor:toggle-highlight" },
+  { id: "highlight", label: "Highlight", icon: ["highlighter", "paintbrush"], group: 1, overflowRank: 4, menu: "highlight" },
   { id: "link", label: "Insert link", icon: ["link-2", "link"], group: 2, overflowRank: 3, command: "editor:insert-link" },
   { id: "table", label: "Table", icon: ["table", "grid-3x3"], group: 2, overflowRank: 2, menu: "table" },
   { id: "image", label: "Insert image", icon: ["image-plus", "image"], group: 2, overflowRank: 1, command: "editor:attach-file" },
@@ -73,6 +73,38 @@ export const TRAILING_CONTROLS: readonly TrailingControl[] = [
 export const BUILT_IN_CONTROLS: readonly { id: string; label: string }[] = [...NAVIGATION_CONTROLS, ...EDITING_CONTROLS, ...TRAILING_CONTROLS].map(
   ({ id, label }) => ({ id, label })
 );
+
+/** One entry of the Highlight menu: plain highlight or one of Obsidian's colours, each its own command. */
+export interface HighlightChoice {
+  /** "plain", or the colour as Obsidian's command id names it. */
+  id: string;
+  title: string;
+  commandId: string;
+}
+
+/** The Highlight menu, in Obsidian's order. The coloured commands arrived in Obsidian 1.14. */
+export const HIGHLIGHT_CHOICES: readonly HighlightChoice[] = [
+  { id: "plain", title: "Highlight", commandId: "editor:toggle-highlight" },
+  ...(["red", "orange", "yellow", "green", "blue", "purple"] as const).map((colour) => ({
+    id: colour,
+    title: `${colour[0].toUpperCase()}${colour.slice(1)} highlight`,
+    commandId: `editor:toggle-highlight-${colour}`,
+  })),
+];
+
+/** The Highlight menu's entries this Obsidian can run: plain highlight always, each colour when its command exists. */
+export function availableHighlights(hasCommand: (commandId: string) => boolean): HighlightChoice[] {
+  return HIGHLIGHT_CHOICES.filter((choice) => choice.id === "plain" || hasCommand(choice.commandId));
+}
+
+/**
+ * What an editing control does in this Obsidian. Highlight opens its colour menu, and
+ * runs plain highlight in one click where Obsidian has no colours (before 1.14).
+ */
+export function resolveControl(control: EditingControl, hasCommand: (commandId: string) => boolean): Pick<EditingControl, "command" | "menu"> {
+  if (control.menu === "highlight" && availableHighlights(hasCommand).length < 2) return { command: HIGHLIGHT_CHOICES[0].commandId };
+  return { command: control.command, menu: control.menu };
+}
 
 /** The editing controls grouped as the bar shows them. */
 export function editingGroups(): EditingControl[][] {

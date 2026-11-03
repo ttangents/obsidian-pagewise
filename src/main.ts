@@ -58,6 +58,7 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
       commandName: (id) => this.commandName(id),
       runCommand: (id) => executeCommand(this.app, id),
       commandHotkey: (id) => hotkeyFor(this.app, id),
+      hasCommand: (id) => findCommand(this.app, id) !== null,
       openSettings: () => {
         if (!openSettingTab(this.app, this.manifest.id)) new Notice("Open settings, then Pagewise, to customize the toolbar.");
       },

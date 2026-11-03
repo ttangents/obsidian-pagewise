@@ -12,6 +12,8 @@ export interface CommandRunner {
   runCommand(commandId: string): void;
   /** The user's hotkey for a command, formatted by Obsidian, or "" when unbound. */
   commandHotkey(commandId: string): string;
+  /** True when an enabled plugin, or Obsidian itself, provides the command. */
+  hasCommand(commandId: string): boolean;
 }
 
 /** One pickable entry in a submenu. */

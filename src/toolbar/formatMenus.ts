@@ -1,9 +1,11 @@
 import type { Editor, Menu } from "obsidian";
+import { menuItemDom } from "../obsidianInternals";
+import { availableHighlights } from "./controls";
 import { SEPARATOR_ICON, headingIcon, type IconChoice } from "./icons";
 import { HEADING_LEVELS, insertCallout, insertSeparator, setHeading } from "./markdownActions";
 import { addEntry, addHotkeyHint, addSubmenu, type CommandRunner } from "./menus";
 
-/** Contents of the Headings and Lists-and-blocks menus. */
+/** Contents of the Headings, Lists-and-blocks and Highlight menus. */
 
 interface CommandEntry {
   title: string;
@@ -47,4 +49,20 @@ export function fillBlocksMenu(menu: Menu, commands: CommandRunner, editor: Edit
   addSubmenu(menu, "Callout (inline)", CALLOUT_ICON, calloutEntries(true));
   menu.addSeparator();
   addEntry(menu, { title: "Separator", icon: [SEPARATOR_ICON], action: () => insertSeparator(editor) });
+}
+
+const HIGHLIGHT_ICON: IconChoice = ["highlighter", "paintbrush"];
+
+/**
+ * Plain highlight, then each colour Obsidian offers (1.14 and later), each running
+ * Obsidian's own command so the user's hotkeys apply. A colour's icon takes the
+ * theme's matching colour from the stylesheet.
+ */
+export function fillHighlightMenu(menu: Menu, commands: CommandRunner): void {
+  availableHighlights((id) => commands.hasCommand(id)).forEach(({ id, title, commandId }, index) => {
+    if (index === 1) menu.addSeparator();
+    const item = addEntry(menu, { title, icon: HIGHLIGHT_ICON, action: () => commands.runCommand(commandId) });
+    menuItemDom(item)?.classList.add(`pagewise-highlight-${id}`);
+    addHotkeyHint(commands, item, commandId);
+  });
 }
