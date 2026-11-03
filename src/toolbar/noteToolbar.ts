@@ -13,7 +13,8 @@ import { addEntry, createMenu, whenHidden, type CommandRunner } from "./menus";
 import { DISABLED_CLASS, fitToWidth, OVERFLOWED_CLASS, UNAVAILABLE_CLASS } from "./overflow";
 import { RovingTabStop } from "./rovingFocus";
 import { fillTableMenu } from "./tableMenu";
-import type { PagewiseToolbarContext, PagewiseToolbarItem } from "./extensionApi";
+import { badgeLabel, paintBadge } from "./badge";
+import { normalizeBadge, type PagewiseToolbarBadge, type PagewiseToolbarContext, type PagewiseToolbarItem } from "./extensionApi";
 import type { ToolbarRegistry } from "./extensionRegistry";
 
 const TOOLBAR_CLASS = "pagewise-toolbar";
@@ -75,6 +76,8 @@ interface Control {
   isActive?: () => boolean;
   /** A label that can change after the toolbar is built (a command's name). */
   currentLabel?: () => string;
+  /** An extension item's badge on this pane; read on every refresh. */
+  badge?: () => PagewiseToolbarBadge | null;
 }
 
 /** Built-in formatting groups need an editor, so Reading view hides them. */
@@ -289,7 +292,12 @@ class PaneToolbar {
         button.setAttribute("aria-disabled", String(!enabled));
       }
       if (control.isActive) button.setAttribute("aria-pressed", String(control.isActive()));
-      const label = control.currentLabel?.();
+      let label = control.currentLabel?.();
+      if (control.badge) {
+        const badge = control.badge();
+        paintBadge(button, badge);
+        label = badgeLabel(label ?? control.label, badge);
+      }
       if (label && button.getAttribute("aria-label") !== label) {
         button.setAttribute("aria-label", label);
         setTooltip(button, label, { placement: "bottom" });
@@ -386,7 +394,7 @@ class PaneToolbar {
       editor: view.editor,
       mode: view.getMode() === "preview" ? "preview" : "source",
     });
-    const { onClick, menu, isActive, isVisible } = item;
+    const { onClick, menu, isActive, isVisible, badge } = item;
     return {
       id: item.id,
       label: item.label,
@@ -398,6 +406,7 @@ class PaneToolbar {
         (item.readingView || context().mode === "source") &&
         registry.call(item.id, "isVisible", () => (isVisible ? isVisible(context()) !== false : true), false),
       isActive: isActive && (() => registry.call(item.id, "isActive", () => isActive(context()) === true, false)),
+      badge: badge && (() => registry.call(item.id, "badge", () => normalizeBadge(badge(context())), null)),
     };
   }
 

@@ -19,6 +19,19 @@ export interface PagewiseToolbarContext {
   mode: "source" | "preview";
 }
 
+/**
+ * A small mark on an item's button, added in Pagewise 0.38.0 (an optional
+ * version 1 addition): a ring around the icon that fills as work progresses, or
+ * a dot that asks for attention.
+ */
+export interface PagewiseToolbarBadge {
+  kind: "progress" | "dot";
+  /** For "progress": how much is done, from 0 to 1. Absent while the total is unknown; the ring then turns. */
+  value?: number;
+  /** Added to the button's accessible name and tooltip, such as "4 of 11 sections done". */
+  label?: string;
+}
+
 /** One button another plugin adds to the toolbar. */
 export interface PagewiseToolbarItem {
   /** Unique across plugins; by convention "<plugin-id>:<name>". Registering an id again replaces the item. */
@@ -37,6 +50,8 @@ export interface PagewiseToolbarItem {
   isVisible?: (context: PagewiseToolbarContext) => boolean;
   /** Also show the button in Reading view. Defaults to false. */
   readingView?: boolean;
+  /** The button's badge on this pane, or null for none. Read with isVisible and isActive; added in 0.38.0. */
+  badge?: (context: PagewiseToolbarContext) => PagewiseToolbarBadge | null;
 }
 
 /** The API object the ready event carries: frozen, and inert after Pagewise unloads. */
@@ -44,7 +59,7 @@ export interface PagewiseApi {
   readonly version: 1;
   /** Adds a toolbar item and returns the function that removes it. Never throws. */
   registerToolbarItem(item: PagewiseToolbarItem): () => void;
-  /** Asks every toolbar to re-read isVisible and isActive, after the caller's state changed. */
+  /** Asks every toolbar to re-read isVisible, isActive and badge, after the caller's state changed. */
   refreshToolbar(): void;
 }
 
@@ -80,7 +95,7 @@ export function validateToolbarItem(input: unknown): Validation {
   const icon = text("icon", MAX_ID);
   if (!icon) return { error: `"icon" must be a Lucide icon name` };
   const fn = (key: string) => (typeof raw[key] === "function" ? raw[key] : undefined);
-  for (const key of ["onClick", "menu", "isActive", "isVisible"]) {
+  for (const key of ["onClick", "menu", "isActive", "isVisible", "badge"]) {
     if (raw[key] !== undefined && !fn(key)) return { error: `"${key}" must be a function` };
   }
   const onClick = fn("onClick") as PagewiseToolbarItem["onClick"];
@@ -101,6 +116,23 @@ export function validateToolbarItem(input: unknown): Validation {
       isActive,
       isVisible: fn("isVisible") as PagewiseToolbarItem["isVisible"],
       readingView: raw.readingView === true,
+      badge: fn("badge") as PagewiseToolbarItem["badge"],
     },
   };
+}
+
+/**
+ * A badge as another plugin's callback returned it, checked and copied; null for
+ * none or for anything Pagewise cannot draw.
+ */
+export function normalizeBadge(input: unknown): PagewiseToolbarBadge | null {
+  if (typeof input !== "object" || input === null) return null;
+  const raw = input as Record<string, unknown>;
+  if (raw.kind !== "progress" && raw.kind !== "dot") return null;
+  const badge: PagewiseToolbarBadge = { kind: raw.kind };
+  if (raw.kind === "progress" && typeof raw.value === "number" && Number.isFinite(raw.value)) {
+    badge.value = Math.min(1, Math.max(0, raw.value));
+  }
+  if (typeof raw.label === "string" && raw.label.trim() !== "") badge.label = raw.label.trim().slice(0, MAX_LABEL);
+  return badge;
 }

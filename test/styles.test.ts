@@ -35,12 +35,19 @@ function selectors(css: string): string[] {
   const stripped = css.replace(/\/\*[\s\S]*?\*\//g, "");
   const found: string[] = [];
   let buffer = "";
+  // The steps inside @keyframes (from, to, 50%) are not selectors; the open blocks say when the scan is in one.
+  const open: boolean[] = [];
   for (const char of stripped) {
     if (char === "{") {
       const prelude = buffer.trim();
-      if (prelude && !prelude.startsWith("@")) found.push(...splitList(prelude));
+      const inKeyframes = open.includes(true);
+      if (prelude && !prelude.startsWith("@") && !inKeyframes) found.push(...splitList(prelude));
+      open.push(prelude.startsWith("@keyframes"));
       buffer = "";
-    } else if (char === "}" || char === ";") {
+    } else if (char === "}") {
+      open.pop();
+      buffer = "";
+    } else if (char === ";") {
       buffer = "";
     } else {
       buffer += char;

@@ -368,6 +368,66 @@
   font-size: var(--font-smallest, 0.85em);
 }
 
+/* An extension item's badge: a progress ring around the icon, or an accent dot (toolbar API, 0.38.0). */
+.pagewise-toolbar .has-pagewise-badge {
+  position: relative;
+}
+
+.pagewise-toolbar .pagewise-toolbar-badge {
+  position: absolute;
+  pointer-events: none;
+}
+
+.pagewise-toolbar .pagewise-toolbar-badge.is-dot {
+  top: 3px;
+  right: 3px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--interactive-accent);
+  box-shadow: 0 0 0 1.5px var(--background-primary);
+}
+
+.pagewise-toolbar .pagewise-toolbar-badge.is-progress {
+  inset: 2px;
+  display: flex;
+}
+
+.pagewise-toolbar .pagewise-toolbar-badge.is-progress svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.pagewise-toolbar .pagewise-toolbar-badge circle {
+  fill: none;
+  stroke-width: 1.5;
+}
+
+.pagewise-toolbar .pagewise-badge-track {
+  stroke: var(--background-modifier-border);
+}
+
+.pagewise-toolbar .pagewise-badge-fill {
+  stroke: var(--interactive-accent);
+  stroke-linecap: round;
+}
+
+.pagewise-toolbar .pagewise-toolbar-badge.is-indeterminate svg {
+  animation: pagewise-badge-spin 1.2s linear infinite;
+}
+
+@keyframes pagewise-badge-spin {
+  from { transform: rotate(-90deg); }
+  to { transform: rotate(270deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pagewise-toolbar .pagewise-toolbar-badge.is-indeterminate svg {
+    animation: none;
+  }
+}
+
 /* The Highlight menu's colours take the theme's own colours. */
 .menu.pagewise-menu .pagewise-highlight-red .menu-item-icon { color: var(--color-red); }
 .menu.pagewise-menu .pagewise-highlight-orange .menu-item-icon { color: var(--color-orange); }
