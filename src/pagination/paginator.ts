@@ -26,7 +26,7 @@ export class Paginator {
 
   /** Measures the natural layout, computes breaks, and writes spacers into the DOM. */
   apply(metrics: PageMetrics): void {
-    const children = this.contentChildren();
+    const children = this.blocks();
     // Heights do not depend on the spacers, so the check runs before they are removed.
     const key = this.layoutKey(children, metrics);
     if (key === this.lastKey && this.hasSpacers()) return;
@@ -63,8 +63,8 @@ export class Paginator {
       .forEach((el) => el.remove());
   }
 
-  /** The sizer's children other than Pagewise's own spacers. */
-  private contentChildren(): HTMLElement[] {
+  /** The sizer's children other than Pagewise's own spacers: the blocks a layout measures. */
+  blocks(): HTMLElement[] {
     return Array.from(this.sizer.children).filter(
       (el): el is HTMLElement =>
         el.instanceOf(HTMLElement) && !el.classList.contains(BREAK_CLASS) && !el.classList.contains(TAIL_CLASS)

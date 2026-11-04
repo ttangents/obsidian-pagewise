@@ -1,6 +1,7 @@
 import { App, MarkdownView, Notice, debounce, type Debouncer, type TFile } from "obsidian";
 import { noteAction } from "./noteScope";
 import { Paginator } from "./paginator";
+import { BlockWatcher, resizeObserverFor } from "./blockWatcher";
 import { pageSizeById, resolveMetrics, type PageMetrics } from "./pageSizes";
 import type { PagewiseSettings } from "../settings";
 import { markdownViews } from "../workspace";
@@ -34,7 +35,7 @@ export class PaginationController {
   /** The note each paginated pane showed when it was paginated or last laid out for a new note. */
   private readonly notes = new Map<MarkdownView, TFile | null>();
   private readonly paginators = new WeakMap<HTMLElement, Paginator>();
-  private readonly observers = new Map<HTMLElement, ResizeObserver>();
+  private readonly watchers = new Map<HTMLElement, BlockWatcher>();
   private readonly relayout: Debouncer<[], void>;
   private metrics: PageMetrics;
   /** A layout pass waiting for the next frame, with the window that frame belongs to. */
@@ -142,8 +143,8 @@ export class PaginationController {
     const sizer = this.sizerOf(view);
     if (!sizer) return;
     this.paginators.get(sizer)?.clear();
-    this.observers.get(sizer)?.disconnect();
-    this.observers.delete(sizer);
+    this.watchers.get(sizer)?.dispose();
+    this.watchers.delete(sizer);
   }
 
   private layoutActiveViews(): void {
@@ -163,8 +164,9 @@ export class PaginationController {
     views.forEach((view) => {
       const sizer = this.sizerOf(view);
       if (!sizer) return;
-      this.paginatorFor(sizer).apply(this.metrics);
-      this.observe(sizer);
+      const paginator = this.paginatorFor(sizer);
+      paginator.apply(this.metrics);
+      this.watcherFor(sizer).track(paginator.blocks());
     });
   }
 
@@ -193,19 +195,18 @@ export class PaginationController {
     return paginator;
   }
 
-  /** Watches the sizer's width so wrapping changes (pane resize, sidebar toggle) trigger a re-layout. */
-  private observe(sizer: HTMLElement): void {
-    if (this.observers.has(sizer)) return;
-    let lastWidth = sizer.clientWidth;
-    // The observer class of the sizer's own window, so panes in pop-outs are watched too.
-    const Observer = sizer.ownerDocument.defaultView?.ResizeObserver ?? ResizeObserver;
-    const observer = new Observer(() => {
-      if (sizer.clientWidth === lastWidth) return;
-      lastWidth = sizer.clientWidth;
-      this.requestLayout();
-    });
-    observer.observe(sizer);
-    this.observers.set(sizer, observer);
+  /**
+   * The watcher that re-lays out a sheet when its width changes or a block resizes
+   * after it was measured: content that other plugins draw late (Dataview, Tasks,
+   * Excalidraw), Mermaid diagrams and images.
+   */
+  private watcherFor(sizer: HTMLElement): BlockWatcher {
+    let watcher = this.watchers.get(sizer);
+    if (!watcher) {
+      watcher = new BlockWatcher(sizer, resizeObserverFor(sizer), () => this.requestLayout());
+      this.watchers.set(sizer, watcher);
+    }
+    return watcher;
   }
 
   /** A closed pane leaves a detached container; drop its state so the sets cannot grow without bound. */
@@ -215,10 +216,10 @@ export class PaginationController {
       this.active.delete(view);
       this.notes.delete(view);
     });
-    this.observers.forEach((observer, sizer) => {
+    this.watchers.forEach((watcher, sizer) => {
       if (sizer.isConnected) return;
-      observer.disconnect();
-      this.observers.delete(sizer);
+      watcher.dispose();
+      this.watchers.delete(sizer);
     });
   }
 
