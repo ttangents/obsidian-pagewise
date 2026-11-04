@@ -7,7 +7,3 @@ build/
 *.log
 CLAUDE.md
 AGENTS.md
-
-# Pagewise
-# Written by scripts/build-tiles.mjs from assets/tiles/ (D15)
-src/appearance/tiles.generated.ts

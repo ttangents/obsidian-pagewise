@@ -38,9 +38,12 @@ test("a 0.32 data.json loses only the legacy toolbarDirection key", () => {
   assert.deepEqual(normalizeSettings(stored), kept);
 });
 
-test("keeps a known background and falls back to plain for anything else", () => {
+test("keeps any background id, since Home Cards decides which exist (D29), and falls back to plain for a malformed one", () => {
   assert.equal(normalizeSettings({ background: "leaves" }).background, "leaves");
-  assert.equal(normalizeSettings({ background: "velvet" }).background, "plain");
+  assert.equal(normalizeSettings({ background: "my-photo.jpg" }).background, "my-photo.jpg");
+  assert.equal(normalizeSettings({ background: "" }).background, "plain");
+  assert.equal(normalizeSettings({ background: 7 }).background, "plain");
+  assert.equal(normalizeSettings({ background: "x".repeat(201) }).background, "plain");
   assert.equal(normalizeSettings({}).background, "plain");
 });
 

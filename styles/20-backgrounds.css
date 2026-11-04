@@ -1,117 +1,28 @@
 
 /* ---------- Canvas backgrounds ----------
- * The CSS half of BACKGROUNDS in src/appearance/backgrounds.ts. The patterns and
- * their tiles come from Home Cards. Each pattern is a pair of seamless tiles, light
- * and dark. The tiles travel in main.js: showPattern() in src/appearance/patternStyle.ts
- * sets them as --pagewise-pattern-light and --pagewise-pattern-dark on the element
- * that shows the pattern (a paginated pane or a palette swatch), and the rules here
- * pick one by theme. The veils are declared on paginated panes; the toolbar's
- * palette lives inside the pane and inherits them, so a swatch always previews
+ * Home Cards owns the patterns and lends them to Pagewise through its API (D29).
+ * Each pattern is a pair of seamless tiles, light and dark, and a veil for each:
+ * the share of the canvas colour laid over the tile. showPattern() in
+ * src/appearance/patternStyle.ts sets the tiles and veils as custom properties on
+ * the element that shows the pattern (a paginated pane or a palette swatch), and
+ * the rules here pick one of each pair by theme, so a swatch always previews
  * exactly what the canvas will paint. Plain sets nothing, and no rule here fires.
- *
- * Each tile carries a veil: the share of the canvas colour laid over it. Home Cards
- * calibrates its veils so every pattern carries about the same weight behind cards.
- * A page is read for longer than a card is scanned, so these veils keep 60% of the
- * ink Home Cards keeps: the pattern stays a texture at the edge of attention.
  */
-
-.workspace-leaf-content[data-type="markdown"].pagewise-active {
-  --pagewise-veil-diamonds: 92%;
-  --pagewise-veil-leaves: 93%;
-  --pagewise-veil-stitches: 89%;
-  --pagewise-veil-suns: 89%;
-  --pagewise-veil-grid: 78%;
-  --pagewise-veil-rain: 73%;
-  --pagewise-veil-squares: 73%;
-  --pagewise-veil-polka: 87%;
-  --pagewise-veil-basket: 87%;
-  --pagewise-veil-pebbles: 76%;
-  --pagewise-veil-confetti: 78%;
-  --pagewise-veil-petals: 90%;
-  --pagewise-veil-paws: 90%;
-}
-
-.theme-dark .workspace-leaf-content[data-type="markdown"].pagewise-active {
-  --pagewise-veil-diamonds: 91%;
-  --pagewise-veil-leaves: 93%;
-  --pagewise-veil-stitches: 94%;
-  --pagewise-veil-suns: 91%;
-  --pagewise-veil-grid: 75%;
-  --pagewise-veil-rain: 70%;
-  --pagewise-veil-squares: 70%;
-  --pagewise-veil-polka: 91%;
-  --pagewise-veil-basket: 93%;
-  --pagewise-veil-pebbles: 91%;
-  --pagewise-veil-confetti: 93%;
-  --pagewise-veil-petals: 93%;
-  --pagewise-veil-paws: 93%;
-}
-
-.pagewise-active[data-pagewise-pattern="diamonds"],
-.pagewise-swatch[data-pagewise-pattern="diamonds"] {
-  --pagewise-veil: var(--pagewise-veil-diamonds);
-}
-.pagewise-active[data-pagewise-pattern="leaves"],
-.pagewise-swatch[data-pagewise-pattern="leaves"] {
-  --pagewise-veil: var(--pagewise-veil-leaves);
-}
-.pagewise-active[data-pagewise-pattern="stitches"],
-.pagewise-swatch[data-pagewise-pattern="stitches"] {
-  --pagewise-veil: var(--pagewise-veil-stitches);
-}
-.pagewise-active[data-pagewise-pattern="suns"],
-.pagewise-swatch[data-pagewise-pattern="suns"] {
-  --pagewise-veil: var(--pagewise-veil-suns);
-}
-.pagewise-active[data-pagewise-pattern="grid"],
-.pagewise-swatch[data-pagewise-pattern="grid"] {
-  --pagewise-veil: var(--pagewise-veil-grid);
-}
-.pagewise-active[data-pagewise-pattern="rain"],
-.pagewise-swatch[data-pagewise-pattern="rain"] {
-  --pagewise-veil: var(--pagewise-veil-rain);
-}
-.pagewise-active[data-pagewise-pattern="squares"],
-.pagewise-swatch[data-pagewise-pattern="squares"] {
-  --pagewise-veil: var(--pagewise-veil-squares);
-}
-.pagewise-active[data-pagewise-pattern="polka"],
-.pagewise-swatch[data-pagewise-pattern="polka"] {
-  --pagewise-veil: var(--pagewise-veil-polka);
-}
-.pagewise-active[data-pagewise-pattern="basket"],
-.pagewise-swatch[data-pagewise-pattern="basket"] {
-  --pagewise-veil: var(--pagewise-veil-basket);
-}
-.pagewise-active[data-pagewise-pattern="pebbles"],
-.pagewise-swatch[data-pagewise-pattern="pebbles"] {
-  --pagewise-veil: var(--pagewise-veil-pebbles);
-}
-.pagewise-active[data-pagewise-pattern="confetti"],
-.pagewise-swatch[data-pagewise-pattern="confetti"] {
-  --pagewise-veil: var(--pagewise-veil-confetti);
-}
-.pagewise-active[data-pagewise-pattern="petals"],
-.pagewise-swatch[data-pagewise-pattern="petals"] {
-  --pagewise-veil: var(--pagewise-veil-petals);
-}
-.pagewise-active[data-pagewise-pattern="paws"],
-.pagewise-swatch[data-pagewise-pattern="paws"] {
-  --pagewise-veil: var(--pagewise-veil-paws);
-}
 
 .pagewise-active[data-pagewise-pattern],
 .pagewise-swatch[data-pagewise-pattern] {
   --pagewise-tile: var(--pagewise-pattern-light);
+  --pagewise-veil: var(--pagewise-veil-light);
 }
 .theme-dark .pagewise-active[data-pagewise-pattern],
 .theme-dark .pagewise-swatch[data-pagewise-pattern] {
   --pagewise-tile: var(--pagewise-pattern-dark);
+  --pagewise-veil: var(--pagewise-veil-dark);
 }
 
 /* The veil is the canvas colour itself, so the sheet keeps the contrast it has on
- * the plain canvas. Tiles are stored 800px wide and drawn at 400px, sharp on 2x
- * screens. The pattern is fixed to the window: the paper scrolls over it, and the
+ * the plain canvas. Tiles are drawn 400px wide; Home Cards stores its own at 800px,
+ * sharp on 2x screens. The pattern is fixed to the window: the paper scrolls over it, and the
  * gaps between sheets in reading view show the same pattern, aligned. */
 .pagewise-active[data-pagewise-pattern] .markdown-preview-view,
 .pagewise-active[data-pagewise-pattern] .markdown-source-view.mod-cm6 > .cm-editor > .cm-scroller,
@@ -228,4 +139,12 @@
 .pagewise-palette .pagewise-swatch-item[aria-checked="true"] .pagewise-swatch-label {
   color: var(--text-normal);
   font-weight: var(--font-semibold);
+}
+
+/* In place of the swatches when the installed Home Cards offers an API this Pagewise cannot read. */
+.pagewise-palette .pagewise-palette-note {
+  max-width: 280px;
+  margin: 0;
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
 }

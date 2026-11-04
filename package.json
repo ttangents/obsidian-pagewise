@@ -5,7 +5,7 @@
   "main": "main.js",
   "scripts": {
     "build": "npm run css && tsc -noEmit -skipLibCheck && npm run lint && vitest run && node esbuild.config.mjs production",
-    "css": "node scripts/build-css.mjs && node scripts/build-tiles.mjs",
+    "css": "node scripts/build-css.mjs",
     "lint": "eslint --max-warnings 0 .",
     "test": "npm run css && vitest run"
   },

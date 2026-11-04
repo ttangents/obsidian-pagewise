@@ -11,8 +11,8 @@ export interface SettingsHost {
   listCommands(): PaletteCommand[];
   commandName(commandId: string): string | null;
   extensionItems(): { id: string; label: string }[];
-  /** The toolbar's built-in controls, in bar order. */
-  builtInControls(): readonly { id: string; label: string }[];
+  /** The toolbar's built-in controls, in bar order, with a note on when a control shows. */
+  builtInControls(): readonly { id: string; label: string; note?: string }[];
 }
 
 /** The icon a new command button gets when its command names none. */
@@ -126,9 +126,9 @@ export class PagewiseSettingTab extends PluginSettingTab {
     return {
       type: "group",
       heading: "Built-in controls",
-      items: this.host.builtInControls().map(({ id, label }) => ({
+      items: this.host.builtInControls().map(({ id, label, note }) => ({
         name: label,
-        desc: "Turn off to remove this control from the toolbar.",
+        desc: note ? `Turn off to remove this control from the toolbar. ${note}` : "Turn off to remove this control from the toolbar.",
         control: { type: "toggle", key: `${SHOWN_PREFIX}${id}` },
       })),
     };

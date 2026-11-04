@@ -1,9 +1,8 @@
 /**
  * Assembles styles.css from styles/*.css, in file-name order. Ported from Home Cards.
  *
- * The background tiles stay out of the stylesheet: scripts/build-tiles.mjs bundles
- * them into main.js. The build fails, and writes nothing, when braces do not balance
- * in a partial or a partial still names a tile.
+ * The build fails, and writes nothing, when braces do not balance in a partial.
+ * Background tiles never enter the stylesheet: Home Cards lends them at run time (D29).
  */
 
 import { readdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -36,8 +35,6 @@ for (const name of partials) {
   if (braceBalance(text) !== 0) fail(`${name}: unbalanced braces`);
   css += text;
 }
-
-if (css.includes("@tile:")) fail("a partial names a tile; tiles travel in main.js (scripts/build-tiles.mjs)");
 
 writeFileSync(join(root, "styles.css"), css);
 console.log(`build-css: styles.css, ${(css.length / 1024).toFixed(0)} KB`);

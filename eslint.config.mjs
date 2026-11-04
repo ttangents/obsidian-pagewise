@@ -2,7 +2,7 @@ import { defineConfig } from "eslint/config";
 import obsidianmd from "eslint-plugin-obsidianmd";
 
 export default defineConfig([
-	{ ignores: ["main.js", "src/appearance/tiles.generated.ts", "node_modules/**", "test/**", "scripts/**", "esbuild.config.mjs", "vitest.config.mts"] },
+	{ ignores: ["main.js", "node_modules/**", "test/**", "scripts/**", "esbuild.config.mjs", "vitest.config.mts"] },
 	...obsidianmd.configs.recommended,
 	{
 		files: ["src/**/*.ts", "api/**/*.ts"],
@@ -10,7 +10,7 @@ export default defineConfig([
 			parserOptions: { projectService: { allowDefaultProject: ["eslint.config.mjs"] }, tsconfigRootDir: import.meta.dirname },
 		},
 		rules: {
-			"obsidianmd/ui/sentence-case": ["warn", { brands: ["Pagewise", "Obsidian", "Lucide"], acronyms: ["US", "A4", "A5", "API"] }],
+			"obsidianmd/ui/sentence-case": ["warn", { brands: ["Pagewise", "Obsidian", "Lucide", "Home Cards"], acronyms: ["US", "A4", "A5", "API"] }],
 		},
 	},
 ]);

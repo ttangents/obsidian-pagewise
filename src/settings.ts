@@ -1,4 +1,4 @@
-import { BACKGROUND_IDS, type BackgroundId } from "./appearance/backgrounds";
+import { PLAIN } from "./appearance/backgrounds";
 import { PAGE_SIZES, type PageSizeId } from "./pagination/pageSizes";
 
 /**
@@ -38,8 +38,11 @@ export interface PagewiseSettings {
   propertiesMode: PropertiesMode;
   /** How callouts look in paginated notes (D25). */
   calloutStyle: CalloutStyle;
-  /** The canvas around the sheets: plain, or one of the Home Cards patterns. */
-  background: BackgroundId;
+  /**
+   * The canvas around the sheets: "plain", or the id of a pattern Home Cards lends
+   * (D29). The id is kept while Home Cards is absent, so the pattern returns with it.
+   */
+  background: string;
   /** Which panes carry the toolbar: paginated ones (default) or every Markdown pane. */
   toolbarScope: ToolbarScope;
   /** Ids of toolbar controls the user hid: built-in ones and ones other plugins added. */
@@ -56,7 +59,7 @@ export const DEFAULT_SETTINGS: PagewiseSettings = {
   gapPx: 24,
   propertiesMode: "sidebar",
   calloutStyle: "cards",
-  background: "plain",
+  background: PLAIN,
   toolbarScope: "paginated",
   hiddenControls: [],
   commandButtons: [],
@@ -83,7 +86,7 @@ export function normalizeSettings(raw: unknown): PagewiseSettings {
     gapPx: number(data.gapPx, 0, 200, d.gapPx),
     propertiesMode: oneOf(data.propertiesMode, ["sidebar", "collapse", "none"], d.propertiesMode),
     calloutStyle: oneOf(data.calloutStyle, ["cards", "theme"], d.calloutStyle),
-    background: oneOf(data.background, BACKGROUND_IDS, d.background),
+    background: typeof data.background === "string" && data.background !== "" && data.background.length <= MAX_ID_LENGTH ? data.background : d.background,
     toolbarScope: oneOf(data.toolbarScope, ["paginated", "all"], d.toolbarScope),
     hiddenControls: idList(data.hiddenControls),
     commandButtons: commandButtons(data.commandButtons),

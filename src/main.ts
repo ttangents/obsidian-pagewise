@@ -13,6 +13,7 @@ import { NoteToolbar } from "./toolbar/noteToolbar";
 import { BUILT_IN_CONTROLS } from "./toolbar/controls";
 import { PropertiesCollapser } from "./properties/propertiesCollapser";
 import { showPattern } from "./appearance/patternStyle";
+import { HomeCardsBackgrounds } from "./partners/homeCards";
 import { markdownViews } from "./workspace";
 import { DOM } from "./obsidianDom";
 
@@ -35,6 +36,8 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
    */
   readonly api: PagewiseApi = createApi(this.registry, () => this.toolbar.refreshState());
   private readonly announcer = new ApiAnnouncer(this.app.workspace, this.api);
+  /** The canvas patterns Home Cards lends while it is installed (D29). */
+  private readonly homeCards = new HomeCardsBackgrounds(this.app.workspace, () => this.backgroundsChanged());
   /**
    * The Properties view and the in-document backlinks container update a moment
    * after the active note changes, so the inspector mark, the toolbar's pressed state
@@ -45,6 +48,11 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
   private readonly refreshMentions = debounce(() => this.mentionFooters.refresh(), 500, true);
   /** Extension items arrive and leave at any time; one rebuild covers a burst of them. */
   private readonly rebuildForExtensions = debounce(() => this.toolbar.rebuild(), 0, true);
+  /** Home Cards arriving, leaving or changing its patterns repaints the canvas and rebuilds the bars once. */
+  private readonly backgroundsChanged = debounce(() => {
+    this.syncBackground();
+    this.toolbar.rebuild();
+  }, 0, true);
 
   async onload(): Promise<void> {
     this.settings = normalizeSettings(await this.loadData());
@@ -55,6 +63,7 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
       propertiesShown: (view) => this.propertiesSidebar.isShownFor(view.file),
       background: () => this.settings.background,
       setBackground: (id) => void this.updateSettings({ background: id }),
+      backgrounds: () => ({ status: this.homeCards.status, backgrounds: this.homeCards.list() }),
       commandName: (id) => this.commandName(id),
       runCommand: (id) => executeCommand(this.app, id),
       commandHotkey: (id) => hotkeyFor(this.app, id),
@@ -64,6 +73,9 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
       },
     }, this.registry);
     this.register(this.registry.onChange(() => this.rebuildForExtensions()));
+    this.homeCards.listen().forEach((ref) => this.registerEvent(ref));
+    // Home Cards may have loaded first; it answers with home-cards:ready.
+    this.homeCards.request();
 
     this.addCommand({
       id: "toggle-paginated-view",
@@ -89,6 +101,8 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
     this.syncSettled.cancel();
     this.refreshMentions.cancel();
     this.rebuildForExtensions.cancel();
+    this.backgroundsChanged.cancel();
+    this.homeCards.dispose();
     this.controller.dispose();
     this.toolbar.dispose();
     this.propertiesSidebar.dispose();
@@ -167,7 +181,7 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
   }
 
   /** The toolbar's built-in controls, for the settings tab. */
-  builtInControls(): readonly { id: string; label: string }[] {
+  builtInControls(): readonly { id: string; label: string; note?: string }[] {
     return BUILT_IN_CONTROLS;
   }
 
@@ -184,9 +198,12 @@ export default class PagewisePlugin extends Plugin implements SettingsHost {
     this.syncSettled();
   }
 
-  /** Marks each paginated pane with the chosen pattern; plain and unpaginated panes carry none. */
+  /**
+   * Marks each paginated pane with the chosen pattern; plain and unpaginated panes
+   * carry none, and so does every pane while Home Cards does not offer the pattern.
+   */
   private syncBackground(): void {
-    const pattern = this.settings.background;
+    const pattern = this.homeCards.find(this.settings.background);
     markdownViews(this.app).forEach((view) => {
       showPattern(view.containerEl, this.controller.isPaginated(view) ? pattern : null);
     });

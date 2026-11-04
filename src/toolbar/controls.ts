@@ -45,6 +45,8 @@ export interface TrailingControl {
   id: "background" | "properties";
   label: string;
   icon: IconChoice;
+  /** When the control shows beyond the user's choice, for the settings tab. */
+  note?: string;
 }
 
 export const NAVIGATION_CONTROLS: readonly NavigationControl[] = [
@@ -65,14 +67,21 @@ export const EDITING_CONTROLS: readonly EditingControl[] = [
 
 /** The trailing controls, in bar order after More. */
 export const TRAILING_CONTROLS: readonly TrailingControl[] = [
-  { id: "background", label: "Background", icon: ["swatch-book", "palette"] },
+  {
+    id: "background",
+    label: "Background",
+    icon: ["swatch-book", "palette"],
+    note: "Shows on paginated notes while Home Cards is installed, which lends the patterns.",
+  },
   { id: "properties", label: "Properties", icon: ["info"] },
 ];
 
 /** Every built-in control the user can hide, in toolbar order, for the settings tab. */
-export const BUILT_IN_CONTROLS: readonly { id: string; label: string }[] = [...NAVIGATION_CONTROLS, ...EDITING_CONTROLS, ...TRAILING_CONTROLS].map(
-  ({ id, label }) => ({ id, label })
-);
+export const BUILT_IN_CONTROLS: readonly { id: string; label: string; note?: string }[] = [
+  ...NAVIGATION_CONTROLS,
+  ...EDITING_CONTROLS,
+  ...TRAILING_CONTROLS,
+].map(({ id, label, ...rest }) => ({ id, label, note: "note" in rest ? rest.note : undefined }));
 
 /** One entry of the Highlight menu: plain highlight or one of Obsidian's colours, each its own command. */
 export interface HighlightChoice {

@@ -52,7 +52,7 @@ case "${1:-}" in
   check)
     run lint npm run --silent lint
     run styles-size check_size styles.css 153600
-    run bundle-size check_size main.js 2097152
+    run bundle-size check_size main.js 307200
     run versions check_versions
     exit $failed ;;
   *) echo "usage: scripts/build.sh build|test|check" >&2; exit 2 ;;

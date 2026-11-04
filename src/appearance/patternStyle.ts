@@ -1,27 +1,39 @@
-import { PATTERN_ATTRIBUTE, type BackgroundId } from "./backgrounds";
-import { TILES } from "./tiles.generated";
-
-/** The custom properties that carry a pattern's tiles; styles/20-backgrounds.css picks one by theme. */
-export const PATTERN_PROPERTIES = { light: "--pagewise-pattern-light", dark: "--pagewise-pattern-dark" } as const;
+import { PATTERN_ATTRIBUTE, type Background } from "./backgrounds";
 
 /**
- * Shows a pattern on an element (a paginated pane or a palette swatch), or none for
- * plain or null: the pattern attribute selects the veil in the stylesheet, and the
- * two custom properties carry the tiles, which live in main.js rather than in
- * styles.css. Calling it again replaces what it set before.
+ * The custom properties that carry a pattern's tiles and veils;
+ * styles/20-backgrounds.css picks one of each pair by theme.
  */
-export function showPattern(el: HTMLElement, pattern: BackgroundId | null): void {
-  // Plain has no tiles, so it clears like null.
-  const tiles = pattern === null ? undefined : TILES[pattern];
-  if (!pattern || !tiles) {
+export const PATTERN_PROPERTIES = {
+  tileLight: "--pagewise-pattern-light",
+  tileDark: "--pagewise-pattern-dark",
+  veilLight: "--pagewise-veil-light",
+  veilDark: "--pagewise-veil-dark",
+} as const;
+
+/**
+ * Shows a pattern on an element (a paginated pane or a palette swatch), or the
+ * plain canvas for null. The attribute marks the element for the stylesheet, and
+ * the custom properties carry the tiles and veils Home Cards lent. Calling it again
+ * replaces what it set before.
+ */
+export function showPattern(el: HTMLElement, background: Background | null): void {
+  if (!background) {
     el.removeAttribute(PATTERN_ATTRIBUTE);
-    el.style.removeProperty(PATTERN_PROPERTIES.light);
-    el.style.removeProperty(PATTERN_PROPERTIES.dark);
+    Object.values(PATTERN_PROPERTIES).forEach((name) => el.style.removeProperty(name));
     return;
   }
-  // The tiles are long strings; a repeat call for the same pattern changes nothing.
-  if (el.getAttribute(PATTERN_ATTRIBUTE) === pattern && el.style.getPropertyValue(PATTERN_PROPERTIES.light)) return;
-  el.setAttribute(PATTERN_ATTRIBUTE, pattern);
-  el.style.setProperty(PATTERN_PROPERTIES.light, `url("${tiles.light}")`);
-  el.style.setProperty(PATTERN_PROPERTIES.dark, `url("${tiles.dark}")`);
+  // Tiles can be long strings; a repeat call for the same pattern changes nothing.
+  const tileLight = `url("${background.tiles.light}")`;
+  if (el.getAttribute(PATTERN_ATTRIBUTE) === background.id && el.style.getPropertyValue(PATTERN_PROPERTIES.tileLight) === tileLight) return;
+  el.setAttribute(PATTERN_ATTRIBUTE, background.id);
+  el.style.setProperty(PATTERN_PROPERTIES.tileLight, tileLight);
+  el.style.setProperty(PATTERN_PROPERTIES.tileDark, `url("${background.tiles.dark}")`);
+  el.style.setProperty(PATTERN_PROPERTIES.veilLight, percent(background.veil.light));
+  el.style.setProperty(PATTERN_PROPERTIES.veilDark, percent(background.veil.dark));
+}
+
+/** A share from 0 to 1 as a CSS percentage with one decimal. */
+function percent(share: number): string {
+  return `${(share * 100).toFixed(1)}%`;
 }

@@ -1,5 +1,6 @@
 import { MarkdownView, Menu as ObsidianMenu, setIcon, setTooltip, type App, type Editor, type Menu } from "obsidian";
-import type { BackgroundId } from "../appearance/backgrounds";
+import type { Background } from "../appearance/backgrounds";
+import type { PartnerStatus } from "../partners/homeCards";
 import { menuIsEmpty, navigationDepth } from "../obsidianInternals";
 import type { CommandButton } from "../settings";
 import { markdownViews } from "../workspace";
@@ -29,9 +30,11 @@ export interface ToolbarActions extends CommandRunner {
   toggleProperties(view: MarkdownView): Promise<void>;
   /** True while a visible Properties view shows the pane's note. */
   propertiesShown(view: MarkdownView): boolean;
-  /** The canvas background, shared by every paginated pane. */
-  background(): BackgroundId;
-  setBackground(id: BackgroundId): void;
+  /** The chosen canvas background's id, shared by every paginated pane. */
+  background(): string;
+  setBackground(id: string): void;
+  /** The patterns Home Cards lends; the Background button shows only while Home Cards is installed (D29). */
+  backgrounds(): { status: PartnerStatus; backgrounds: readonly Background[] };
   /** A command's name in the command palette, or null while no enabled plugin provides it. */
   commandName(commandId: string): string | null;
   /** Opens Pagewise's settings, where the toolbar is customized. */
@@ -238,7 +241,9 @@ class PaneToolbar {
         const button = this.button(label, press);
         button.classList.add(`pagewise-toolbar-${id}`);
         setIcon(button, resolveIcon(icon));
-        if (config.hidden.has(id)) button.detach();
+        // Background shows only while Home Cards is installed, which lends the patterns (D29).
+        const unavailable = id === "background" && actions.backgrounds().status === "absent";
+        if (config.hidden.has(id) || unavailable) button.detach();
         else trailing.append(button);
         return [id, button] as const;
       })
@@ -251,6 +256,7 @@ class PaneToolbar {
     this.palette = new BackgroundPalette(this.el, backgroundButton, {
       current: () => this.actions.background(),
       choose: (id) => this.actions.setBackground(id),
+      offered: () => this.actions.backgrounds(),
     });
 
     this.attach();
