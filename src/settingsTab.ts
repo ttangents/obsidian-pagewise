@@ -1,6 +1,7 @@
 import { App, FuzzySuggestModal, getIcon, PluginSettingTab, setIcon, type Plugin, type Setting, type SettingDefinitionItem } from "obsidian";
 import type { PaletteCommand } from "./obsidianInternals";
 import { PAGE_SIZES } from "./pagination/pageSizes";
+import { GALLERY, availableSuggestions, type GalleryEntry } from "./toolbar/gallery";
 import { MAX_COMMAND_BUTTONS, normalizeSettings, type CommandButton, type PagewiseSettings } from "./settings";
 
 /** What the settings tab needs from its owner: current values, a way to change them, and the toolbar's catalog. */
@@ -61,7 +62,7 @@ export class PagewiseSettingTab extends PluginSettingTab {
   }
 
   getSettingDefinitions(): SettingDefinitionItem[] {
-    return [...this.pageDefinitions(), this.toolbarGroup(), this.builtInGroup(), this.commandList(), this.extensionList()];
+    return [...this.pageDefinitions(), this.toolbarGroup(), this.builtInGroup(), this.commandList(), this.suggestedGroup(), this.extensionList()];
   }
 
   private pageDefinitions(): SettingDefinitionItem[] {
@@ -171,6 +172,33 @@ export class PagewiseSettingTab extends PluginSettingTab {
     };
   }
 
+  /**
+   * Ready-made buttons for the popular plugins the user has enabled (toolbar/gallery.ts).
+   * The group shows only while at least one suggestion is available.
+   */
+  private suggestedGroup(): SettingDefinitionItem {
+    const { commandButtons } = this.host.settings;
+    const suggestions = availableSuggestions(
+      GALLERY,
+      (id) => this.host.commandName(id) !== null,
+      commandButtons.map((button) => button.commandId)
+    );
+    const full = commandButtons.length >= MAX_COMMAND_BUTTONS;
+    return {
+      type: "group",
+      heading: "Suggested buttons",
+      visible: suggestions.length > 0 && !full,
+      items: suggestions.map((entry) => ({
+        name: entry.label,
+        desc: `From ${entry.plugin}.`,
+        render: (setting: Setting) => {
+          setIcon(setting.controlEl.createSpan({ cls: "pagewise-settings-icon" }), getIcon(entry.icon) ? entry.icon : "puzzle");
+          setting.addButton((button) => button.setButtonText("Add").onClick(() => void this.addSuggestion(entry)));
+        },
+      })),
+    };
+  }
+
   /** The icon field of one command button, with a live preview. Typing never redraws the tab. */
   private iconField(setting: Setting, button: CommandButton): void {
     const preview = setting.controlEl.createSpan({ cls: "pagewise-settings-icon" });
@@ -211,6 +239,13 @@ export class PagewiseSettingTab extends PluginSettingTab {
     const buttons = this.host.settings.commandButtons.filter((button) => button.commandId !== command.id);
     const icon = command.icon && getIcon(command.icon) ? command.icon : DEFAULT_COMMAND_ICON;
     await this.saveButtons([...buttons, { commandId: command.id, icon }], true);
+  }
+
+  private async addSuggestion(entry: GalleryEntry): Promise<void> {
+    const buttons = this.host.settings.commandButtons.filter((button) => button.commandId !== entry.commandId);
+    if (buttons.length >= MAX_COMMAND_BUTTONS) return;
+    const icon = getIcon(entry.icon) ? entry.icon : DEFAULT_COMMAND_ICON;
+    await this.saveButtons([...buttons, { commandId: entry.commandId, icon }], true);
   }
 
   /** Saves the command buttons; `redraw` rebuilds the rows, which typing in an icon field must not do. */
