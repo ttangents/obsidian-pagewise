@@ -393,6 +393,20 @@
   display: flex;
 }
 
+/* On a menu button the badge sits on the 16px icon beside the chevron; the ring circles it at 22px and keeps clear of the chevron. */
+.pagewise-toolbar .pagewise-toolbar-icon > .pagewise-toolbar-badge.is-progress {
+  inset: -3px;
+}
+
+.pagewise-toolbar .pagewise-toolbar-icon:has(> .pagewise-toolbar-badge.is-progress) {
+  margin-right: 2px;
+}
+
+.pagewise-toolbar .pagewise-toolbar-icon > .pagewise-toolbar-badge.is-dot {
+  top: -3px;
+  right: -3px;
+}
+
 .pagewise-toolbar .pagewise-toolbar-badge.is-progress svg {
   width: 100%;
   height: 100%;

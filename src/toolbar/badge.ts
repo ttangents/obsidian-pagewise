@@ -21,16 +21,21 @@ export function badgeKey(badge: PagewiseToolbarBadge | null): string {
   return badge.value === undefined ? "progress:spin" : `progress:${Math.round(badge.value * 100)}`;
 }
 
-/** Puts the badge on the button, replaces a different one, or removes it for null. */
+/**
+ * Puts the badge on the button's icon, replaces a different one, or removes it for
+ * null. A menu button holds its icon and a chevron side by side, so the badge sits
+ * on the icon's own box there, never on the whole button.
+ */
 export function paintBadge(button: HTMLElement, badge: PagewiseToolbarBadge | null): void {
   const key = badgeKey(badge);
   if ((button.dataset.pagewiseBadge ?? "") === key) return;
-  button.querySelector(`:scope > .${BADGE_CLASS}`)?.remove();
-  if (badge?.kind === "dot") dot(button);
-  else if (badge) ring(button, badge.value);
+  const host = button.querySelector<HTMLElement>(":scope > .pagewise-toolbar-icon") ?? button;
+  host.querySelector(`:scope > .${BADGE_CLASS}`)?.remove();
+  if (badge?.kind === "dot") dot(host);
+  else if (badge) ring(host, badge.value);
   if (key) button.dataset.pagewiseBadge = key;
   else delete button.dataset.pagewiseBadge;
-  button.classList.toggle("has-pagewise-badge", key !== "");
+  host.classList.toggle("has-pagewise-badge", key !== "");
 }
 
 function dot(button: HTMLElement): void {
