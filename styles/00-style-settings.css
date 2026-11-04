@@ -1,0 +1,53 @@
+/* @settings
+
+name: Pagewise
+id: pagewise
+settings:
+    -
+        id: pagewise-style-heading
+        title: Paginated view
+        description: Colours of the sheets and the canvas. Leave a colour unchanged to follow your theme.
+        type: heading
+        level: 2
+        collapsed: false
+    -
+        id: pagewise-style-sheet
+        title: Sheet colour
+        description: The paper the note sits on.
+        type: variable-themed-color
+        format: hex
+        opacity: false
+        default-light: '#ffffff'
+        default-dark: '#1e1e1e'
+    -
+        id: pagewise-style-canvas
+        title: Canvas colour
+        description: The ground around and between the sheets. A background pattern draws over it.
+        type: variable-themed-color
+        format: hex
+        opacity: false
+        default-light: '#f2f2f2'
+        default-dark: '#171717'
+    -
+        id: pagewise-style-card
+        title: Card colour
+        description: Callout cards and linked mention cards.
+        type: variable-themed-color
+        format: hex
+        opacity: false
+        default-light: '#f9f9f9'
+        default-dark: '#242424'
+    -
+        id: pagewise-style-page-number
+        title: Page number colour
+        type: variable-themed-color
+        format: hex
+        opacity: false
+        default-light: '#ababab'
+        default-dark: '#666666'
+    -
+        id: pagewise-style-hide-page-numbers
+        title: Hide page numbers
+        type: class-toggle
+        default: false
+*/

@@ -14,9 +14,10 @@
  * a hairline before any shadow.
  */
 .workspace-leaf-content[data-type="markdown"].pagewise-active {
-  --pagewise-sheet: var(--background-primary);
+  /* Each --pagewise-style-* colour comes from the Style Settings plugin when the user sets one (styles/00-style-settings.css). */
+  --pagewise-sheet: var(--pagewise-style-sheet, var(--background-primary));
   /* Canvas: the sheet's own tone, faintly tinted with the theme's text colour. */
-  --pagewise-ground: color-mix(in srgb, var(--background-primary), var(--text-normal) 6%);
+  --pagewise-ground: var(--pagewise-style-canvas, color-mix(in srgb, var(--background-primary), var(--text-normal) 6%));
   --pagewise-edge: color-mix(in srgb, var(--background-modifier-border), transparent 10%);
   --pagewise-shadow:
     0 0 0 1px var(--pagewise-edge),
@@ -25,7 +26,7 @@
   --pagewise-toolbar-shadow:
     0 0 0 1px var(--pagewise-hairline),
     0 1px 2px rgba(0, 0, 0, 0.04);
-  --pagewise-card-bg: color-mix(in srgb, var(--background-primary), var(--text-normal) 2.5%);
+  --pagewise-card-bg: var(--pagewise-style-card, color-mix(in srgb, var(--background-primary), var(--text-normal) 2.5%));
   --pagewise-radius-card: 8px;
   --pagewise-radius-mark: 3px;
   --pagewise-break-height: calc(var(--pagewise-margin) * 2 + var(--pagewise-gap));
@@ -33,7 +34,7 @@
 
 /* Dark mode: the canvas sits a step below the sheet; shadows all but disappear. */
 .theme-dark .workspace-leaf-content[data-type="markdown"].pagewise-active {
-  --pagewise-ground: color-mix(in srgb, var(--background-primary), black 22%);
+  --pagewise-ground: var(--pagewise-style-canvas, color-mix(in srgb, var(--background-primary), black 22%));
   --pagewise-edge: color-mix(in srgb, var(--background-modifier-border), transparent 5%);
   --pagewise-shadow:
     0 0 0 1px var(--pagewise-edge),
@@ -41,7 +42,7 @@
   --pagewise-toolbar-shadow:
     0 0 0 1px var(--pagewise-hairline),
     0 1px 2px rgba(0, 0, 0, 0.20);
-  --pagewise-card-bg: color-mix(in srgb, var(--background-primary), var(--text-normal) 3.5%);
+  --pagewise-card-bg: var(--pagewise-style-card, color-mix(in srgb, var(--background-primary), var(--text-normal) 3.5%));
 }
 
 /* ---------- Reading view ---------- */
@@ -138,7 +139,13 @@
   text-align: center;
   font-size: var(--font-smallest, 0.75em);
   line-height: 1;
-  color: var(--text-faint);
+  color: var(--pagewise-style-page-number, var(--text-faint));
+}
+
+/* Style Settings' "Hide page numbers" puts this class on the body. */
+.pagewise-style-hide-page-numbers .pagewise-active .pagewise-break[data-page]::before,
+.pagewise-style-hide-page-numbers .pagewise-active .pagewise-tail[data-page]::before {
+  content: none;
 }
 
 /* Centered in the ending sheet's bottom-margin band, above the gap and the next sheet's top margin. */
