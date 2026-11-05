@@ -6,7 +6,7 @@ import { pageSizeById, resolveMetrics, type PageMetrics } from "./pageSizes";
 import type { PagewiseSettings } from "../settings";
 import { markdownViews } from "../workspace";
 import { DOM } from "../obsidianDom";
-import { setReadingBottomPadding, setReadingRendersWholeNote } from "../obsidianInternals";
+import { setReadingBottomPadding } from "../obsidianInternals";
 
 const ACTIVE_CLASS = "pagewise-active";
 const HIDE_PROPS_CLASS = "pagewise-props-hidden";
@@ -37,8 +37,6 @@ export class PaginationController {
   private readonly notes = new Map<MarkdownView, TFile | null>();
   private readonly paginators = new WeakMap<HTMLElement, Paginator>();
   private readonly watchers = new Map<HTMLElement, BlockWatcher>();
-  /** Per sheet: notices Reading view attaching sections it had already rendered, which runs no post-processor. */
-  private readonly childWatchers = new Map<HTMLElement, MutationObserver>();
   private readonly relayout: Debouncer<[], void>;
   private metrics: PageMetrics;
   /** A layout pass waiting for the next frame, with the window that frame belongs to. */
@@ -132,10 +130,8 @@ export class PaginationController {
     this.active.add(view);
     this.notes.set(view, view.file);
     view.containerEl.classList.add(ACTIVE_CLASS);
-    // The last sheet ends at its last page, and the whole note stays attached so the
-    // pages never re-plan as the reader scrolls (obsidianInternals.ts).
+    // The last sheet ends at its last page; the tail spacer carries the bottom margin.
     setReadingBottomPadding(view, false);
-    setReadingRendersWholeNote(view, true);
     this.setGeometry(view);
     this.applyPresentation(view);
     this.layoutActiveViews();
@@ -147,15 +143,12 @@ export class PaginationController {
     view.containerEl.classList.remove(ACTIVE_CLASS, HIDE_PROPS_CLASS, CALLOUT_CARDS_CLASS);
     GEOMETRY_VARS.forEach((name) => view.containerEl.style.removeProperty(name));
     setReadingBottomPadding(view, true);
-    setReadingRendersWholeNote(view, false);
     this.properties.restore([view]);
     const sizer = this.sizerOf(view);
     if (!sizer) return;
     this.paginators.get(sizer)?.clear();
     this.watchers.get(sizer)?.dispose();
     this.watchers.delete(sizer);
-    this.childWatchers.get(sizer)?.disconnect();
-    this.childWatchers.delete(sizer);
   }
 
   private layoutActiveViews(): void {
@@ -216,11 +209,6 @@ export class PaginationController {
     if (!watcher) {
       watcher = new BlockWatcher(sizer, resizeObserverFor(sizer), () => this.requestLayout());
       this.watchers.set(sizer, watcher);
-      // Page marks change attributes and styles only, so a layout never wakes this observer.
-      const Mutations = sizer.ownerDocument.defaultView?.MutationObserver ?? MutationObserver;
-      const children = new Mutations(() => this.requestLayout());
-      children.observe(sizer, { childList: true });
-      this.childWatchers.set(sizer, children);
     }
     return watcher;
   }
@@ -236,8 +224,6 @@ export class PaginationController {
       if (sizer.isConnected) return;
       watcher.dispose();
       this.watchers.delete(sizer);
-      this.childWatchers.get(sizer)?.disconnect();
-      this.childWatchers.delete(sizer);
     });
   }
 

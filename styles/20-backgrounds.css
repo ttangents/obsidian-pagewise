@@ -26,7 +26,7 @@
  * gaps between sheets in reading view show the same pattern, aligned. */
 .pagewise-active[data-pagewise-pattern] .markdown-preview-view,
 .pagewise-active[data-pagewise-pattern] .markdown-source-view.mod-cm6 > .cm-editor > .cm-scroller,
-.workspace-leaf-content[data-type="markdown"].pagewise-active[data-pagewise-pattern] .markdown-preview-view .markdown-preview-sizer > .pagewise-page-start::before,
+.pagewise-active[data-pagewise-pattern] .pagewise-break::after,
 .pagewise-swatch[data-pagewise-pattern] {
   --pagewise-veil-color: color-mix(in srgb, var(--pagewise-ground) var(--pagewise-veil, 100%), transparent);
   background-image:
@@ -38,14 +38,14 @@
 
 .pagewise-active[data-pagewise-pattern] .markdown-preview-view,
 .pagewise-active[data-pagewise-pattern] .markdown-source-view.mod-cm6 > .cm-editor > .cm-scroller,
-.workspace-leaf-content[data-type="markdown"].pagewise-active[data-pagewise-pattern] .markdown-preview-view .markdown-preview-sizer > .pagewise-page-start::before {
+.pagewise-active[data-pagewise-pattern] .pagewise-break::after {
   background-attachment: fixed;
 }
 
 /* A patterned gap cannot borrow solid shadows to cover the sheet's edges, so it
  * widens by the same 7px and draws the closing and opening hairlines as layers
  * across the sheet's own width. */
-.workspace-leaf-content[data-type="markdown"].pagewise-active[data-pagewise-pattern] .markdown-preview-view .markdown-preview-sizer > .pagewise-page-start::before {
+.pagewise-active[data-pagewise-pattern] .pagewise-break::after {
   left: calc(var(--pagewise-margin) * -1 - 7px);
   right: calc(var(--pagewise-margin) * -1 - 7px);
   box-shadow: none;

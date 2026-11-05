@@ -104,24 +104,21 @@
   display: none;
 }
 
-/* Page breaks. The paginator marks the block that starts each new page and gives it a
- * margin as tall as the rest of the page plus the break (--pagewise-break-space). Above
- * the block, ::before paints the ground between the sheets and ::after sets the number
- * of the page that ends. --pagewise-break-gap is the space Obsidian's own layout
- * already leaves above the block, so the gap sits where a spacer used to end. */
-.workspace-leaf-content[data-type="markdown"].pagewise-active .markdown-preview-view .markdown-preview-sizer > .pagewise-page-start {
+/* Page break spacer: transparent for the fill portion, then paints the ground between sheets.
+ * Both spacers anchor their page number (::before); the break also paints the ground (::after). */
+.pagewise-active .pagewise-break,
+.pagewise-active .pagewise-tail {
   position: relative;
-  margin-top: var(--pagewise-break-space, 0px);
+  pointer-events: none;
 }
 
-.workspace-leaf-content[data-type="markdown"].pagewise-active .markdown-preview-view .markdown-preview-sizer > .pagewise-page-start::before {
+.pagewise-active .pagewise-break::after {
   content: "";
   position: absolute;
   left: calc(var(--pagewise-margin) * -1);
   right: calc(var(--pagewise-margin) * -1);
-  bottom: calc(100% + var(--pagewise-break-gap, 0px));
+  bottom: 0;
   height: var(--pagewise-break-height);
-  pointer-events: none;
   background-color: var(--pagewise-ground);
   /* The gap closes one sheet and opens the next with the sheet's own hairline. The two
    * offset shadows paint canvas 7px past each side, over the sheet's outer edge and
@@ -134,39 +131,33 @@
     7px 0 0 0 var(--pagewise-ground);
 }
 
-/* Page number, centered in the ending sheet's bottom-margin band, above the gap and the next sheet's top margin. */
-.workspace-leaf-content[data-type="markdown"].pagewise-active .markdown-preview-view .markdown-preview-sizer > .pagewise-page-start::after {
-  content: attr(data-pagewise-page);
+/* Page number, set in the bottom margin of the sheet the spacer closes. */
+.pagewise-active .pagewise-break[data-page]::before,
+.pagewise-active .pagewise-tail[data-page]::before {
+  content: attr(data-page);
   position: absolute;
   left: 0;
   right: 0;
-  bottom: calc(100% + var(--pagewise-break-gap, 0px) + var(--pagewise-gap) + var(--pagewise-margin) * 1.5);
-  pointer-events: none;
   text-align: center;
   font-size: var(--font-smallest, 0.75em);
   line-height: 1;
   color: var(--pagewise-style-page-number, var(--text-faint));
 }
 
-/* The last page: a box after the last block fills the page and ends with its bottom margin, where its number sits. */
-.workspace-leaf-content[data-type="markdown"].pagewise-active .markdown-preview-view .markdown-preview-sizer::after {
-  content: var(--pagewise-last-page, "");
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  box-sizing: border-box;
-  height: var(--pagewise-tail, 0px);
-  padding-bottom: calc(var(--pagewise-margin) * 0.5 - 0.5em);
-  pointer-events: none;
-  font-size: var(--font-smallest, 0.75em);
-  line-height: 1;
-  color: var(--pagewise-style-page-number, var(--text-faint));
+/* Style Settings' "Hide page numbers" puts this class on the body. */
+.pagewise-style-hide-page-numbers .pagewise-active .pagewise-break[data-page]::before,
+.pagewise-style-hide-page-numbers .pagewise-active .pagewise-tail[data-page]::before {
+  content: none;
 }
 
-/* Style Settings' "Hide page numbers" puts this class on the body. */
-.pagewise-style-hide-page-numbers .workspace-leaf-content[data-type="markdown"].pagewise-active .markdown-preview-view .markdown-preview-sizer > .pagewise-page-start::after,
-.pagewise-style-hide-page-numbers .workspace-leaf-content[data-type="markdown"].pagewise-active .markdown-preview-view .markdown-preview-sizer::after {
-  color: transparent;
+/* Centered in the ending sheet's bottom-margin band, above the gap and the next sheet's top margin. */
+.pagewise-active .pagewise-break[data-page]::before {
+  bottom: calc(var(--pagewise-gap) + var(--pagewise-margin) * 1.5);
+}
+
+/* The last sheet's number sits in the bottom margin the tail spacer ends with. */
+.pagewise-active .pagewise-tail[data-page]::before {
+  bottom: calc(var(--pagewise-margin) * 0.5);
 }
 
 /* ---------- Live Preview and Source mode (sheet styling only; no page breaks) ---------- */
