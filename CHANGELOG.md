@@ -2,6 +2,12 @@
 
 What's new in each release of Pagewise. The newest release comes first.
 
+## 0.39.2
+
+### Fixed
+
+- The underline on links inside highlighted text now uses plain CSS that every supported version of Obsidian draws in full.
+
 ## 0.39.1
 
 A tidy-up of Pagewise's stylesheet, so it sits better alongside themes and snippets.

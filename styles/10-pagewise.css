@@ -460,8 +460,7 @@
 .workspace-leaf-content[data-type="markdown"].pagewise-active .markdown-source-view.mod-cm6 .cm-highlight:is(.cm-hmd-internal-link, .cm-link, .cm-url),
 .workspace-leaf-content[data-type="markdown"].pagewise-active .markdown-source-view.mod-cm6 .cm-highlight :is(.cm-hmd-internal-link, .cm-link, .cm-url, .cm-underline) {
   color: var(--text-normal);
-  text-decoration-line: underline;
-  text-decoration-color: color-mix(in srgb, var(--text-normal) 50%, transparent);
+  text-decoration: underline;
 }
 
 /* The Highlight menu's colours take the theme's own colours. */
