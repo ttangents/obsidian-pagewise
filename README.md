@@ -85,7 +85,7 @@ Copy `main.js`, `manifest.json` and `styles.css` from the [latest release](https
 ## Build it yourself
 
 ```sh
-npm install
+npm ci
 npm run build
 ```
 

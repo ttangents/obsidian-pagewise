@@ -1,5 +1,6 @@
 import { Component, getLinkpath, Keymap, MarkdownRenderer, type App, type HoverParent, type HoverPopover } from "obsidian";
 import { renderAlsoLinked } from "./alsoLinked";
+import { cardWeight, ColumnBalance } from "./columns";
 import { addFoldToggle, onKeys, shownWhenFolded } from "./fold";
 import { addSection } from "./section";
 import { collectMentions, passageMarkdown, type Citation, type LinkIndex, type PropertyLink } from "./mentionIndex";
@@ -96,18 +97,25 @@ export class MentionFooter extends Component implements HoverParent {
     if (cards.length > 0) {
       const section = addSection(this.el, "Linked mentions", cards.length);
       const grid = section.createDiv({ cls: "pagewise-mentions-cards" });
+      const columns = [grid.createDiv({ cls: "pagewise-mentions-column" }), grid.createDiv({ cls: "pagewise-mentions-column" })];
+      const balance = new ColumnBalance(columns.length);
+      const place = (card: Card, folded: boolean) => this.drawCard(columns[balance.place(cardWeight(card.markdown))], card, drawn, folded);
       const shown = shownWhenFolded(cards.length, SHOWN_CITATIONS);
-      cards.slice(0, shown).forEach((card) => this.drawCard(grid, card, drawn, false));
+      cards.slice(0, shown).forEach((card) => place(card, false));
       if (shown < cards.length) {
         // The folded cards are drawn the first time the reader unfolds them.
-        const drawRest = () => cards.slice(shown).forEach((card) => this.drawCard(grid, card, drawn, true));
+        let restDrawn = false;
+        const drawRest = () => {
+          restDrawn = true;
+          cards.slice(shown).forEach((card) => place(card, true));
+        };
         if (this.cardsUnfolded) drawRest();
         grid.toggleClass("is-unfolded", this.cardsUnfolded);
         addFoldToggle(section.createDiv({ cls: "pagewise-mentions-more" }), {
           foldedText: `${cards.length - shown} more notes`,
           unfolded: this.cardsUnfolded,
           onChange: (unfolded) => {
-            if (unfolded && grid.children.length === shown) drawRest();
+            if (unfolded && !restDrawn) drawRest();
             this.cardsUnfolded = unfolded;
             grid.toggleClass("is-unfolded", unfolded);
           },
@@ -122,8 +130,8 @@ export class MentionFooter extends Component implements HoverParent {
     );
   }
 
-  private drawCard(grid: HTMLElement, { citation, markdown }: Card, drawn: Component, folded: boolean): void {
-    const card = grid.createDiv({ cls: "pagewise-mention" });
+  private drawCard(column: HTMLElement, { citation, markdown }: Card, drawn: Component, folded: boolean): void {
+    const card = column.createDiv({ cls: "pagewise-mention" });
     card.toggleClass("is-folded", folded);
     const title = card.createDiv({ cls: "pagewise-mention-title", text: citation.name, attr: { role: "link", tabindex: "0" } });
     title.addEventListener("click", (event) => this.openNote(citation.path, event));

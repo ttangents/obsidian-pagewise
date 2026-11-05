@@ -36,7 +36,9 @@ export function renderAlsoLinked(
   });
   const hidden = notes.length - shown;
   if (hidden === 0) return;
-  addFoldToggle(line, {
+  // The fold pill sits in the list, so it wraps in the same row as the pills; role none keeps it out of the count a screen reader announces.
+  const more = list.createEl("li", { cls: "pagewise-also-linked-more", attr: { role: "none" } });
+  addFoldToggle(more, {
     foldedText: `${hidden} more`,
     unfolded: fold.unfolded,
     onChange: (unfolded) => {

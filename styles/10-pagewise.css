@@ -58,6 +58,9 @@
   max-width: var(--pagewise-page-width);
   min-height: var(--pagewise-page-height);
   margin: 0 auto var(--pagewise-gap);
+  /* Obsidian writes an inline padding-bottom on this sizer at every resize, half the
+   * pane's height, so the last line can scroll up. On a sheet that would stretch the
+   * last page, and only an important declaration outranks an inline style. */
   padding: var(--pagewise-margin) !important;
   background-color: var(--pagewise-sheet);
   box-shadow: var(--pagewise-shadow);
@@ -169,10 +172,10 @@
 .workspace-leaf-content[data-type="markdown"].pagewise-active .markdown-source-view.mod-cm6 > .cm-editor > .cm-scroller > .cm-sizer {
   box-sizing: border-box;
   width: var(--pagewise-page-width);
-  max-width: var(--pagewise-page-width) !important;
+  max-width: var(--pagewise-page-width);
   min-height: var(--pagewise-page-height);
   margin: 0 auto var(--pagewise-gap);
-  padding: var(--pagewise-margin) !important;
+  padding: var(--pagewise-margin);
   background-color: var(--pagewise-sheet);
   box-shadow: var(--pagewise-shadow);
   --file-line-width: calc(var(--pagewise-page-width) - var(--pagewise-margin) * 2);
@@ -355,16 +358,17 @@
   }
 }
 
-/* Themes like Minimal hide every menu icon; restore them in Pagewise's own menus only. */
-.menu.pagewise-menu .menu-item-icon {
-  display: flex !important;
-  width: auto !important;
+/* Pagewise's menus show their icons even where a theme hides menu icons, since the
+ * highlight colours and similar entries say what they do with them. */
+.menu.pagewise-menu .menu-item .menu-item-icon {
+  display: flex;
+  width: auto;
 }
 
-.menu.pagewise-menu .menu-item-icon svg {
-  display: block !important;
-  width: var(--icon-size, 16px) !important;
-  height: var(--icon-size, 16px) !important;
+.menu.pagewise-menu .menu-item .menu-item-icon svg {
+  display: block;
+  width: var(--icon-size, 16px);
+  height: var(--icon-size, 16px);
 }
 
 /* Hotkey hints in Pagewise menus, right-aligned like Bear's. */
@@ -405,7 +409,7 @@
   inset: -3px;
 }
 
-.pagewise-toolbar .pagewise-toolbar-icon:has(> .pagewise-toolbar-badge.is-progress) {
+.pagewise-toolbar .pagewise-toolbar-icon.has-pagewise-progress {
   margin-right: 2px;
 }
 
@@ -515,17 +519,18 @@
 }
 
 /* Lists with values put the label above them, as Obsidian itself does in a narrow
- * sidebar. Empty lists and single values stay as compact rows. */
-.pagewise-inspector .metadata-property:has(> .metadata-property-value:is([data-property-type="multitext"], [data-property-type="aliases"], [data-property-type="tags"]) .multi-select-pill) {
+ * sidebar. Empty lists and single values stay as compact rows. Pagewise marks those
+ * rows with .pagewise-list-property (properties/listRows.ts). */
+.pagewise-inspector .metadata-property.pagewise-list-property {
   flex-wrap: wrap;
 }
 
-.pagewise-inspector .metadata-property:has(> .metadata-property-value:is([data-property-type="multitext"], [data-property-type="aliases"], [data-property-type="tags"]) .multi-select-pill) > .metadata-property-key {
+.pagewise-inspector .metadata-property.pagewise-list-property > .metadata-property-key {
   width: 100%;
   min-width: 0;
 }
 
-.pagewise-inspector .metadata-property:has(> .metadata-property-value:is([data-property-type="multitext"], [data-property-type="aliases"], [data-property-type="tags"]) .multi-select-pill) > .metadata-property-value {
+.pagewise-inspector .metadata-property.pagewise-list-property > .metadata-property-value {
   margin-top: -2px;
   padding-inline-start: calc(var(--icon-size) + var(--size-4-1));
 }
@@ -700,9 +705,10 @@
  * In a paginated pane Pagewise draws the linked mentions itself (mentions/), inside
  * Obsidian's in-document backlinks container, and Obsidian's own panel there gives
  * way. Unpaginated panes and the Backlinks sidebar keep Obsidian's panel. Each note
- * that links here from its text is a card; the cards flow in two columns. */
+ * that links here from its text is a card; the cards sit in two columns, and
+ * mentionFooter.ts puts each card in the shorter one. */
 .workspace-leaf-content[data-type="markdown"].pagewise-active .embedded-backlinks > :not(.pagewise-mentions) {
-  display: none !important;
+  display: none;
 }
 
 .workspace-leaf-content[data-type="markdown"].pagewise-active .pagewise-mentions {
@@ -735,17 +741,22 @@
 }
 
 .workspace-leaf-content[data-type="markdown"].pagewise-active .pagewise-mentions-cards {
-  columns: 2;
-  column-gap: 14px;
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.workspace-leaf-content[data-type="markdown"].pagewise-active .pagewise-mentions-column {
+  flex: 1 1 0;
+  min-width: 0;
 }
 
 .workspace-leaf-content[data-type="markdown"].pagewise-active .pagewise-mentions-cards:not(.is-unfolded) .pagewise-mention.is-folded {
   display: none;
 }
 
-/* One card per citing note, never split across columns. */
+/* One card per citing note. */
 .workspace-leaf-content[data-type="markdown"].pagewise-active .pagewise-mentions .pagewise-mention {
-  break-inside: avoid;
   background: var(--pagewise-card-bg);
   border: 1px solid var(--pagewise-hairline);
   border-radius: var(--pagewise-radius-card);
@@ -821,10 +832,6 @@
  * cards' style (alsoLinked.ts). The pills take Obsidian's own pill variables, the
  * look of the Properties panel, with the names in the link colour. */
 .workspace-leaf-content[data-type="markdown"].pagewise-active .pagewise-mentions .pagewise-also-linked {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--size-4-2);
   background: var(--pagewise-card-bg);
   border: 1px solid var(--pagewise-hairline);
   border-radius: var(--pagewise-radius-card);
@@ -834,13 +841,19 @@
   line-height: var(--line-height-tight);
 }
 
-/* The list holds no box of its own, so its pills and the fold pill wrap as one row. */
+/* The pills and the fold pill share one list, so they wrap as one row. */
 .workspace-leaf-content[data-type="markdown"].pagewise-active .pagewise-mentions .pagewise-also-linked-list {
-  display: contents;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--size-4-2);
+  margin: 0;
+  padding: 0;
   list-style: none;
 }
 
-.workspace-leaf-content[data-type="markdown"].pagewise-active .pagewise-mentions .pagewise-also-linked-item {
+.workspace-leaf-content[data-type="markdown"].pagewise-active .pagewise-mentions .pagewise-also-linked-item,
+.workspace-leaf-content[data-type="markdown"].pagewise-active .pagewise-mentions .pagewise-also-linked-more {
   display: flex;
   min-width: 0;
   max-width: 100%;

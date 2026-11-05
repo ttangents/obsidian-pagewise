@@ -28,6 +28,11 @@ export const DOM = {
   metadataIndicator: ".metadata-properties-heading .collapse-indicator",
   /** The core Properties view's type (Properties sidebar). */
   propertiesViewType: "file-properties",
+  /** A row in a Properties list, its value with the attribute naming the value's type, and one pill of a list value (inspector list rows). */
+  metadataProperty: ".metadata-property",
+  metadataValue: ":scope > .metadata-property-value",
+  propertyTypeAttribute: "data-property-type",
+  multiSelectPill: ".multi-select-pill",
   /** The in-document backlinks container under a note, which Obsidian shows while "Backlinks in document" is on (references footer). */
   embeddedBacklinks: ".embedded-backlinks",
   /** Elements that own focus when an action opened them: modals, prompts, menus (toolbar focus). */

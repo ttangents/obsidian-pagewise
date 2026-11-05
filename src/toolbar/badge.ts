@@ -36,6 +36,8 @@ export function paintBadge(button: HTMLElement, badge: PagewiseToolbarBadge | nu
   if (key) button.dataset.pagewiseBadge = key;
   else delete button.dataset.pagewiseBadge;
   host.classList.toggle("has-pagewise-badge", key !== "");
+  // The stylesheet makes room for the ring by this class, as it cannot ask which badge the icon holds.
+  host.classList.toggle("has-pagewise-progress", badge?.kind === "progress");
 }
 
 function dot(button: HTMLElement): void {

@@ -1,5 +1,6 @@
 import { FileView, type App, type TFile, type WorkspaceLeaf } from "obsidian";
 import { DOM } from "../obsidianDom";
+import { LIST_ROW_CLASS, markListRows } from "./listRows";
 
 const PROPERTIES_VIEW_TYPE = DOM.propertiesViewType;
 const INSPECTOR_CLASS = "pagewise-inspector";
@@ -15,6 +16,9 @@ const HEADER_CLASS = "pagewise-inspector-header";
  * the note's pane active before calling toggle().
  */
 export class PropertiesSidebar {
+  /** One observer per marked inspector, which marks its list rows again after Obsidian redraws them. */
+  private readonly rowWatchers = new Map<HTMLElement, MutationObserver>();
+
   constructor(private readonly app: App) {}
 
   /**
@@ -55,12 +59,20 @@ export class PropertiesSidebar {
    * the view itself, so a pinned view names its pinned note.
    */
   syncInspectors(paginatedPaths: ReadonlySet<string>): void {
+    // A closed Properties view leaves its content detached; stop watching it.
+    this.rowWatchers.forEach((watcher, content) => {
+      if (content.isConnected) return;
+      watcher.disconnect();
+      this.rowWatchers.delete(content);
+    });
     this.app.workspace.getLeavesOfType(PROPERTIES_VIEW_TYPE).forEach((leaf) => {
       if (!(leaf.view instanceof FileView)) return;
       const file = leaf.view.file;
       const active = !!file && paginatedPaths.has(file.path);
       leaf.view.containerEl.classList.toggle(INSPECTOR_CLASS, active);
       const content = leaf.view.contentEl;
+      if (active) this.watchRows(content);
+      else this.unwatchRows(content);
       let header = content.querySelector<HTMLElement>(`:scope > .${HEADER_CLASS}`);
       if (!active || !file) {
         header?.remove();
@@ -77,10 +89,29 @@ export class PropertiesSidebar {
 
   /** Removes every inspector mark and heading Pagewise added. */
   dispose(): void {
+    [...this.rowWatchers.keys()].forEach((content) => this.unwatchRows(content));
     this.app.workspace.getLeavesOfType(PROPERTIES_VIEW_TYPE).forEach((leaf) => {
       leaf.view.containerEl.classList.remove(INSPECTOR_CLASS);
       leaf.view.containerEl.querySelectorAll(`.${HEADER_CLASS}`).forEach((el) => el.remove());
     });
+  }
+
+  /** Marks the inspector's list rows now and after every redraw. Changing a class is not a change the observer watches, so marking never wakes it. */
+  private watchRows(content: HTMLElement): void {
+    markListRows(content);
+    if (this.rowWatchers.has(content)) return;
+    // The observer of the window that holds the view, so a pop-out window is watched too.
+    const Mutations = content.doc.defaultView?.MutationObserver ?? MutationObserver;
+    const watcher = new Mutations(() => markListRows(content));
+    watcher.observe(content, { childList: true, subtree: true });
+    this.rowWatchers.set(content, watcher);
+  }
+
+  /** Stops watching and takes the marks off, for a view that no longer shows a paginated note. */
+  private unwatchRows(content: HTMLElement): void {
+    this.rowWatchers.get(content)?.disconnect();
+    this.rowWatchers.delete(content);
+    content.querySelectorAll(`.${LIST_ROW_CLASS}`).forEach((el) => el.classList.remove(LIST_ROW_CLASS));
   }
 
   private visibleLeafFor(file: TFile): WorkspaceLeaf | null {
