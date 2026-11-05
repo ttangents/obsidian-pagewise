@@ -42,7 +42,6 @@ If you have Obsidian's "Backlinks in document" option on, Pagewise gives each pa
 ## Plays well with others
 
 - [Home Cards](https://community.obsidian.md/plugins/home-cards). With Home Cards installed, a Background button paints the space around your pages with any of Home Cards' patterns, or with an image you added there. An "Open Home Cards page" button shows the note's neighbors as cards.
-- Semantic Zoom, my plugin for reading a note at three depths, adds a Reading depth menu to the toolbar. It is on its way to Community plugins.
 - Suggested buttons. If you use Templater, Dataview, Tasks, Excalidraw, Longform, Linter, Citations, Pandoc or Better Export PDF, Pagewise's settings offer a ready-made button for the command you will reach for most. One click adds it.
 - Content that draws itself late, such as Dataview and Tasks results, Mermaid diagrams, Excalidraw drawings and images, moves the page breaks below it once it has finished drawing.
 - [Style Settings](https://github.com/mgmeyers/obsidian-style-settings) lets you pick the colors of the sheets, the background, the cards and the page numbers, or hide the page numbers. The colors you leave alone follow your theme.

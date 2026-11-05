@@ -238,9 +238,8 @@ In `attach`, check that `version` is 1 and that `registerToolbarItem` and `refre
 - Narrow the pane until your button moves into More.
 - Throw an error from your `onClick` on purpose. You should see one warning in the console and a working toolbar.
 
-## Plugins already on the toolbar
+## A plugin already on the toolbar
 
 - [Home Cards](https://community.obsidian.md/plugins/home-cards) adds "Open Home Cards page".
-- Semantic Zoom adds a Reading depth menu, with a badge that shows a note's summary progress.
 
 Something missing, or an idea for the toolbar? [Open an issue](https://github.com/ttangents/obsidian-pagewise/issues). I'd love to hear what you build.
