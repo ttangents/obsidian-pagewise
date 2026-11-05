@@ -4,6 +4,8 @@ Pagewise lays out your notes as pages, the way a word processor does. Turn it on
 
 Pagewise works with any theme and keeps your notes as plain Markdown. Turn it off, and every note looks just as it did before.
 
+![An essay in Reading view as a page on a sheet, with the document toolbar above it, light mode](docs/pages-light.webp)
+
 ## Get started
 
 1. Open Settings → Community plugins → Browse, search for Pagewise, then install it and turn it on.
@@ -35,9 +37,13 @@ The toolbar sits at the top of every paginated note. Prefer it everywhere? Set "
 
 On a narrow pane, buttons tuck themselves into the More menu, so every one stays within reach.
 
+![The highlight menu open on the toolbar, with six colors to pick from, dark mode](docs/toolbar-dark.webp)
+
 ## Linked mentions at the foot of the page
 
 If you have Obsidian's "Backlinks in document" option on, Pagewise gives each paginated note a friendlier ending. Under "Linked mentions", every note that links here gets a card with the passage around the link, so you can read what it says in place. Notes that link only from their properties appear as small labels underneath. Click a passage to open that note right at the link, or hover over a link for a preview.
+
+![Linked mentions as cards in two columns, with a note linked from properties underneath](docs/mentions-light.webp)
 
 ## Plays well with others
 
@@ -47,6 +53,8 @@ If you have Obsidian's "Backlinks in document" option on, Pagewise gives each pa
 - [Style Settings](https://github.com/mgmeyers/obsidian-style-settings) lets you pick the colors of the sheets, the background, the cards and the page numbers, or hide the page numbers. The colors you leave alone follow your theme.
 
 Every one of these is optional, and Pagewise does its whole job on its own.
+
+![A page on one of Home Cards' patterns, dark mode](docs/background-dark.webp)
 
 ## Your privacy
 
