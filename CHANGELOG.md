@@ -2,6 +2,16 @@
 
 What's new in each release of Pagewise. The newest release comes first.
 
+## 0.39.3
+
+### Fixed
+
+- Paginated notes in Reading view no longer scroll by themselves. A jump of more than half a screen, from scrolling fast or from a link, used to land the page somewhere else, sometimes a page or more away.
+
+### Changed
+
+- Reading view now lays out a paginated note whole, the way a word processor does, so every page and page number stays put as you scroll. Page breaks sit on the note's own blocks, and Pagewise adds nothing of its own between them.
+
 ## 0.39.2
 
 ### Fixed

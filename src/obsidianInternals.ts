@@ -16,6 +16,8 @@ import type { App, MarkdownView, Menu, MenuItem, WorkspaceLeaf } from "obsidian"
  * - WorkspaceLeaf.history.backHistory / forwardHistory: whether Back and Forward can move.
  * - MarkdownView.previewMode.renderer.addBottomPadding / onResize: Reading view's extra
  *   space after the note, half the pane's height (paginated sheets end at their last page).
+ * - MarkdownView.previewMode.renderer.renderExtraMinPx / updateVirtualDisplay: how far past
+ *   the screen Reading view keeps sections attached (paginated notes keep them all).
  */
 
 /** A command as the command palette lists it. */
@@ -47,6 +49,39 @@ interface ViewInternals {
 interface ReadingRenderer {
   addBottomPadding?: unknown;
   onResize?(): void;
+  renderExtraMinPx?: unknown;
+  updateVirtualDisplay?(): void;
+}
+
+function readingRenderer(view: MarkdownView): ReadingRenderer | undefined {
+  return (view.previewMode as unknown as { renderer?: ReadingRenderer }).renderer;
+}
+
+/** Each renderer's own distance before Pagewise widened it, so turning off puts it back. */
+const ownRenderDistance = new WeakMap<ReadingRenderer, number>();
+/** Far enough to keep every section of any note attached. */
+const WHOLE_NOTE_PX = 1e9;
+
+/**
+ * Keeps every section of the note attached in Reading view, or returns to Obsidian's
+ * own window of sections around the screen. Page breaks depend on everything above
+ * them, so a paginated note is laid out whole, the way a word processor lays out a
+ * document; with only a window attached, each scroll would re-plan the pages and
+ * move the text under the reader.
+ * @returns false when this Obsidian has no such setting; pages then lay out per window.
+ */
+export function setReadingRendersWholeNote(view: MarkdownView, whole: boolean): boolean {
+  const renderer = readingRenderer(view);
+  if (!renderer || typeof renderer.renderExtraMinPx !== "number") return false;
+  if (whole) {
+    if (!ownRenderDistance.has(renderer)) ownRenderDistance.set(renderer, renderer.renderExtraMinPx);
+    renderer.renderExtraMinPx = WHOLE_NOTE_PX;
+  } else {
+    renderer.renderExtraMinPx = ownRenderDistance.get(renderer) ?? renderer.renderExtraMinPx;
+    ownRenderDistance.delete(renderer);
+  }
+  renderer.updateVirtualDisplay?.();
+  return true;
 }
 
 /**
@@ -56,7 +91,7 @@ interface ReadingRenderer {
  * @returns false when this Obsidian has no such switch; the last page then runs long.
  */
 export function setReadingBottomPadding(view: MarkdownView, on: boolean): boolean {
-  const renderer = (view.previewMode as unknown as { renderer?: ReadingRenderer }).renderer;
+  const renderer = readingRenderer(view);
   if (!renderer || typeof renderer.addBottomPadding !== "boolean") return false;
   renderer.addBottomPadding = on;
   renderer.onResize?.();
