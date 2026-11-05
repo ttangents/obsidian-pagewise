@@ -51,7 +51,8 @@ export class Paginator {
       page += 1;
       children[indexes[index]].before(this.spacer(BREAK_CLASS, height, page));
     });
-    this.spacer(TAIL_CLASS, plan.tailPadding, page + 1);
+    // The tail fills the last page and then its bottom margin, since the sheet itself has no bottom padding.
+    this.spacer(TAIL_CLASS, plan.tailPadding + metrics.marginPx, page + 1);
     this.lastKey = key;
   }
 

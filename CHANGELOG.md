@@ -9,7 +9,8 @@ A tidy-up of Pagewise's stylesheet, so it sits better alongside themes and snipp
 ### Changed
 
 - Linked mention cards now fill two columns side by side, each card going to the shorter column, so the columns end at about the same height.
-- Pagewise's styles no longer force their way past your theme, apart from one rule that keeps the last page the right length in Reading view.
+- Pagewise's styles no longer force their way past your theme.
+- In Reading view, a paginated note now ends with its last page, without the half screen of empty space Obsidian adds below a note.
 
 ### Fixed
 

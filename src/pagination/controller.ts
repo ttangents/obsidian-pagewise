@@ -6,6 +6,7 @@ import { pageSizeById, resolveMetrics, type PageMetrics } from "./pageSizes";
 import type { PagewiseSettings } from "../settings";
 import { markdownViews } from "../workspace";
 import { DOM } from "../obsidianDom";
+import { setReadingBottomPadding } from "../obsidianInternals";
 
 const ACTIVE_CLASS = "pagewise-active";
 const HIDE_PROPS_CLASS = "pagewise-props-hidden";
@@ -129,6 +130,8 @@ export class PaginationController {
     this.active.add(view);
     this.notes.set(view, view.file);
     view.containerEl.classList.add(ACTIVE_CLASS);
+    // The last sheet ends at its last page; the tail spacer carries the bottom margin.
+    setReadingBottomPadding(view, false);
     this.setGeometry(view);
     this.applyPresentation(view);
     this.layoutActiveViews();
@@ -139,6 +142,7 @@ export class PaginationController {
     this.notes.delete(view);
     view.containerEl.classList.remove(ACTIVE_CLASS, HIDE_PROPS_CLASS, CALLOUT_CARDS_CLASS);
     GEOMETRY_VARS.forEach((name) => view.containerEl.style.removeProperty(name));
+    setReadingBottomPadding(view, true);
     this.properties.restore([view]);
     const sizer = this.sizerOf(view);
     if (!sizer) return;

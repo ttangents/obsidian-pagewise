@@ -14,6 +14,8 @@ import type { App, MarkdownView, Menu, MenuItem, WorkspaceLeaf } from "obsidian"
  * - app.setting.open / openTabById: open Pagewise's settings ("Customize toolbar…").
  * - Menu.items: whether a filled menu has anything to show.
  * - WorkspaceLeaf.history.backHistory / forwardHistory: whether Back and Forward can move.
+ * - MarkdownView.previewMode.renderer.addBottomPadding / onResize: Reading view's extra
+ *   space after the note, half the pane's height (paginated sheets end at their last page).
  */
 
 /** A command as the command palette lists it. */
@@ -39,6 +41,26 @@ interface WithDom {
 
 interface ViewInternals {
   metadataEditor?: { setCollapse?(collapsed: boolean, animate: boolean): void };
+}
+
+/** The part of Reading view's renderer that decides the space after the note. */
+interface ReadingRenderer {
+  addBottomPadding?: unknown;
+  onResize?(): void;
+}
+
+/**
+ * Turns Reading view's extra space after the note on or off. Obsidian writes that
+ * space as an inline padding-bottom on the sheet at every resize, so Pagewise switches
+ * it off at the source while a pane is paginated and back on afterwards.
+ * @returns false when this Obsidian has no such switch; the last page then runs long.
+ */
+export function setReadingBottomPadding(view: MarkdownView, on: boolean): boolean {
+  const renderer = (view.previewMode as unknown as { renderer?: ReadingRenderer }).renderer;
+  if (!renderer || typeof renderer.addBottomPadding !== "boolean") return false;
+  renderer.addBottomPadding = on;
+  renderer.onResize?.();
+  return true;
 }
 
 /** Runs a built-in Obsidian command by id. */

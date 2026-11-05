@@ -58,10 +58,9 @@
   max-width: var(--pagewise-page-width);
   min-height: var(--pagewise-page-height);
   margin: 0 auto var(--pagewise-gap);
-  /* Obsidian writes an inline padding-bottom on this sizer at every resize, half the
-   * pane's height, so the last line can scroll up. On a sheet that would stretch the
-   * last page, and only an important declaration outranks an inline style. */
-  padding: var(--pagewise-margin) !important;
+  /* No bottom padding: the tail spacer carries the last page's bottom margin, and
+   * Pagewise turns off the extra space Obsidian writes there (setReadingBottomPadding). */
+  padding: var(--pagewise-margin) var(--pagewise-margin) 0;
   background-color: var(--pagewise-sheet);
   box-shadow: var(--pagewise-shadow);
   --file-line-width: calc(var(--pagewise-page-width) - var(--pagewise-margin) * 2);
@@ -156,9 +155,9 @@
   bottom: calc(var(--pagewise-gap) + var(--pagewise-margin) * 1.5);
 }
 
-/* The last sheet's number sits in the sizer's own bottom padding. */
+/* The last sheet's number sits in the bottom margin the tail spacer ends with. */
 .pagewise-active .pagewise-tail[data-page]::before {
-  bottom: calc(var(--pagewise-margin) * -0.5);
+  bottom: calc(var(--pagewise-margin) * 0.5);
 }
 
 /* ---------- Live Preview and Source mode (sheet styling only; no page breaks) ---------- */
