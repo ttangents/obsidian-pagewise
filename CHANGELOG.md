@@ -13,6 +13,7 @@ A tidy-up of Pagewise's stylesheet, so it sits better alongside themes and snipp
 
 ### Fixed
 
+- A link inside highlighted text now takes the text color with an underline, so it stays easy to read on every highlight color, in dark mode too.
 - Building Pagewise from a fresh copy of its code no longer changes the lockfile.
 
 ## 0.39.0
