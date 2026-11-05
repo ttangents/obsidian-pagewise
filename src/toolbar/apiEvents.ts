@@ -2,8 +2,7 @@ import type { EventRef, Events } from "obsidian";
 import { READY_EVENT, REQUEST_EVENT, UNLOAD_EVENT, type PagewiseApi } from "./extensionApi";
 
 /**
- * Pagewise's side of the family handshake (Vibes standards, "Integrations between
- * the author's Obsidian plugins"): it announces the API on the workspace's public event bus
+ * Pagewise's side of the handshake shared by this family of plugins: it announces the API on the workspace's public event bus
  * once the API is usable and on every request, and announces its unload first thing
  * on unload. Any load order connects: a consumer that loaded first hears the ready
  * event, and one that loads later triggers the request.

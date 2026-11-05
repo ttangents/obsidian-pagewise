@@ -1,87 +1,97 @@
 # Pagewise
 
-Pagewise shows an Obsidian note as paginated sheets, like a word processor. Reading view gets page breaks and page numbers; Live Preview and Source mode get the same sheet styling without page breaks. Pagewise also adds a document toolbar with Back and Forward, formatting and table menus, collapsible in-note Properties with an on-demand Properties sidebar, and callouts and linked mentions drawn as cards.
+Pagewise lays out your notes as pages, the way a word processor does. Turn it on for a note, and Reading view becomes a stack of tidy sheets with page breaks and page numbers. A document toolbar comes too, so the formatting you use most sits right above your writing.
 
-Pagewise works with every theme. It writes plain Markdown only and never puts HTML or CSS into notes. Turning it off removes every change it made to the page. PDF export and printing stay with Obsidian.
+Pagewise works with any theme and keeps your notes as plain Markdown. Turn it off, and every note looks just as it did before.
 
-## Use it
+## Get started
 
-- Run "Toggle paginated view for this note" from the command palette, or click the book icon in the ribbon.
-- In settings, choose whether pagination applies to one note at a time or to all notes, the page size, margins, the gap between sheets, what happens to Properties, and whether callouts show as Pagewise cards or as your theme draws them.
-- The toolbar shows on paginated notes, or on all notes if you choose. It starts with Back and Forward, which replace the pair in Obsidian's tab title bar on that pane, then the formatting controls, then the buttons you or other plugins added, each section set apart by a thin divider. Add any command from the command palette as a toolbar button, and hide any built-in control. Right-click the toolbar to customize it.
+1. Open Settings → Community plugins → Browse, search for Pagewise, then install it and turn it on.
+2. Open a note and click the book icon in the ribbon, or run "Toggle paginated view for this note" from the command palette.
+3. Switch to Reading view to see your note as pages. In Live Preview and Source mode, your note shows as one long sheet, so you can keep writing.
 
-## Works with your other plugins
+Pagewise runs on desktop with Obsidian 1.13.1 or later.
 
-- Suggested buttons. If you use Templater, Dataview, Tasks, Excalidraw, Longform, Linter, Citations, Pandoc or Better Export PDF, Pagewise's settings offer a ready-made toolbar button for the command you will reach for most, one click each. Only plugins you have enabled appear.
-- Late-drawn content. Page breaks follow blocks that finish drawing after the note opens, such as Dataview and Tasks results, Mermaid diagrams, Excalidraw drawings and images.
-- Home Cards. With [Home Cards](https://community.obsidian.md/plugins/home-cards) installed, a Background button on the toolbar paints the canvas around the sheets with any of Home Cards' patterns. Without Home Cards, Pagewise works fully and the canvas stays plain.
-- Style Settings. With [Style Settings](https://github.com/mgmeyers/obsidian-style-settings), set the colour of the sheets, the canvas, the cards and the page numbers, or hide the page numbers. Anything you leave unchanged follows your theme.
-- Your own plugin. Any plugin can add buttons to the toolbar. See "Toolbar API" below.
+## Set up your pages
 
-## Privacy
+Settings → Pagewise lets you choose:
 
-Pagewise makes no network requests, collects no data and needs no account.
+- whether pagination covers just the note in front of you or every note at once. "This note only" resets when you close the note, and "All notes" stays on after a restart;
+- the page size (A4, A5, US Letter or US Legal), the margins in millimeters, and the gap between sheets. A margin of 25.4 mm matches Word's one inch;
+- what happens to a note's properties: move them to the sidebar, fold them away on the page, or leave them as they are;
+- how callouts look: as neat Pagewise cards, or just as your theme draws them.
 
-## Toolbar API
+Printing and PDF export stay with Obsidian. When you export a paginated note, Obsidian sets the PDF's page breaks from its own export settings.
 
-Other plugins add buttons to Pagewise's toolbar through a small, versioned API that Pagewise publishes on public workspace events. Your plugin never imports Pagewise and works unchanged when Pagewise is absent.
+## The toolbar
 
-The quickest route is to copy [`api/pagewise-api.ts`](api/pagewise-api.ts) into your plugin. It holds the types and `connectPagewise`, which handles either load order, Pagewise being reloaded or turned off, and an incompatible version:
+The toolbar sits at the top of every paginated note. Prefer it everywhere? Set "Show the toolbar on" to "All notes".
+
+- Back and Forward come first. On a pane with the toolbar, they take over from the pair in the tab's title bar.
+- Next come headings, lists, quotes and code blocks, bold, italic, highlight in six colors, links, tables and images.
+- The table menu adds and removes rows and columns and sets alignment, and it keeps every cell you have typed.
+- The Properties button opens the note's properties in the sidebar.
+- Add any command from the command palette as a button with its own icon, and hide any built-in button you never use. Right-click the toolbar and choose "Customize toolbar…" to get there fast.
+
+On a narrow pane, buttons tuck themselves into the More menu, so every one stays within reach.
+
+## Linked mentions at the foot of the page
+
+If you have Obsidian's "Backlinks in document" option on, Pagewise gives each paginated note a friendlier ending. Under "Linked mentions", every note that links here gets a card with the passage around the link, so you can read what it says in place. Notes that link only from their properties appear as small labels underneath. Click a passage to open that note right at the link, or hover over a link for a preview.
+
+## Plays well with others
+
+- [Home Cards](https://community.obsidian.md/plugins/home-cards). With Home Cards installed, a Background button paints the space around your pages with any of Home Cards' patterns, or with an image you added there. An "Open Home Cards page" button shows the note's neighbors as cards.
+- Semantic Zoom, my plugin for reading a note at three depths, adds a Reading depth menu to the toolbar. It is on its way to Community plugins.
+- Suggested buttons. If you use Templater, Dataview, Tasks, Excalidraw, Longform, Linter, Citations, Pandoc or Better Export PDF, Pagewise's settings offer a ready-made button for the command you will reach for most. One click adds it.
+- Content that draws itself late, such as Dataview and Tasks results, Mermaid diagrams, Excalidraw drawings and images, moves the page breaks below it once it has finished drawing.
+- [Style Settings](https://github.com/mgmeyers/obsidian-style-settings) lets you pick the colors of the sheets, the background, the cards and the page numbers, or hide the page numbers. The colors you leave alone follow your theme.
+
+Every one of these is optional, and Pagewise does its whole job on its own.
+
+## Your privacy
+
+Pagewise works entirely on your computer. It never connects to the internet, collects no data and needs no account. It changes a note only when you use a formatting or table button, and then it writes ordinary Markdown.
+
+## For plugin developers
+
+Your plugin can add its own buttons to Pagewise's toolbar: a plain button, a menu or an on-and-off toggle, with an optional progress ring or dot. Copy one small file into your plugin, and a few lines connect you. Your plugin keeps working whether or not Pagewise is installed.
 
 ```ts
-import { Plugin } from "obsidian";
+import { Notice, Plugin } from "obsidian";
 import { connectPagewise } from "./pagewise-api";
 
-export default class MyPlugin extends Plugin {
+export default class WordCountPlugin extends Plugin {
   onload(): void {
     connectPagewise(this, (pagewise) =>
-      // Return the remover; the helper calls it whenever the connection ends.
       pagewise.registerToolbarItem({
-        id: "my-plugin:word-count",
-        label: "Word count",
+        id: "word-count:count",
+        label: "Count words",
         icon: "hash",
-        onClick: ({ editor }) => console.log(editor.getValue().split(/\s+/).length),
+        onClick: ({ editor }) => {
+          new Notice(`${editor.getValue().split(/\s+/).filter(Boolean).length} words`);
+        },
       })
     );
   }
 }
 ```
 
-What an item can be:
+The [toolbar guide](docs/TOOLBAR-API.md) walks you through every kind of button, with examples.
 
-| Kind | Fields | Behaviour |
-|---|---|---|
-| Action | `onClick` | Runs when pressed; may return a promise |
-| Menu | `menu` | Fills an Obsidian menu that opens under the button |
-| Toggle | `onClick` and `isActive` | Shows pressed while `isActive` returns true |
+## Install by hand
 
-Every item has `id` (unique; by convention `<plugin-id>:<name>`), `label` (the accessible name and tooltip, in sentence case) and `icon` (a Lucide name Obsidian ships). Optional: `isVisible` to hide the button on some notes, `readingView: true` to keep it in Reading view, and `badge` for a progress ring or an attention dot. Every callback receives `{ view, file, editor, mode }` for the pane it acts on, and Pagewise makes that pane active first, so commands act on the right note. Call `refreshToolbar()` after your own state changes.
+Copy `main.js`, `manifest.json` and `styles.css` from the [latest release](https://github.com/ttangents/obsidian-pagewise/releases/latest) into `<your vault>/.obsidian/plugins/pagewise/`, reload Obsidian, and turn Pagewise on.
 
-Pagewise keeps these promises for version 1:
-
-1. `registerToolbarItem` never throws. A malformed item logs one warning and returns a remover that does nothing.
-2. Pagewise copies the item when you register it; register again to change it. Registering an id again replaces the item in place.
-3. Every callback runs inside a guard. An exception costs only your button, with one warning.
-4. After Pagewise unloads, the API does nothing and removers are safe to call.
-5. Version 1 only grows by optional additions. A breaking change would arrive as version 2 beside version 1.
-
-The events, if you would rather connect by hand:
-
-| Event | Sent by | Payload |
-|---|---|---|
-| `pagewise:ready` | Pagewise, once the API is usable and again on every request | The API object (version 1) |
-| `pagewise:request` | Any plugin, to ask for `pagewise:ready` again | None |
-| `pagewise:unload` | Pagewise, first thing when it unloads | None |
-
-## Build
+## Build it yourself
 
 ```sh
-npm ci
+npm install
 npm run build
 ```
 
-`npm run build` generates `styles.css`, type-checks, runs ESLint with Obsidian's review rules and zero warnings allowed, runs the tests with Vitest, and bundles `main.js`. `npm test` runs the tests alone.
+The build creates `styles.css`, checks the types, runs Obsidian's review rules and the tests, and bundles `main.js`. `npm test` runs the tests on their own.
 
-## Licence
+## License
 
-MIT. You may copy `api/pagewise-api.ts` into your own plugin without attribution.
+[MIT](LICENSE). `api/pagewise-api.ts` carries the MIT No Attribution license, so you can copy it into your own plugin with or without credit.

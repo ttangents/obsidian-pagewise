@@ -4,8 +4,8 @@ import { readBackgrounds, type Background } from "../appearance/backgrounds";
 /**
  * Pagewise's side of Home Cards' API (D29): the canvas patterns. Home Cards owns
  * the patterns and lends them; without Home Cards, Pagewise offers no Background
- * button and paints the plain canvas. The connection follows the family handshake
- * in Vibes standards ("Integrations between the author's Obsidian plugins"), and every
+ * button and paints the plain canvas. The connection follows the handshake
+ * shared by this family of plugins, and every
  * call into Home Cards is guarded, so a failure there costs only the patterns.
  */
 

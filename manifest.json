@@ -3,7 +3,8 @@
   "name": "Pagewise",
   "version": "0.39.0",
   "minAppVersion": "1.13.1",
-  "description": "Toggle a note between the default view and a paginated, word-processor style page layout that honors the active theme.",
+  "description": "Lay out your notes as word-processor pages, with page numbers and a handy document toolbar, in any theme.",
   "author": "ttangents",
+  "authorUrl": "https://github.com/ttangents",
   "isDesktopOnly": true
 }
