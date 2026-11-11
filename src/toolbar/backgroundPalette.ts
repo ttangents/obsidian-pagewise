@@ -38,7 +38,9 @@ export class BackgroundPalette {
   constructor(
     private readonly host: HTMLElement,
     private readonly toggle: HTMLElement,
-    private readonly choice: BackgroundChoice
+    private readonly choice: BackgroundChoice,
+    /** Returns focus on close; the toggle by default. The toolbar sends it to More when Background is in More. */
+    private readonly refocus: () => void = () => this.toggle.focus()
   ) {}
 
   get isOpen(): boolean {
@@ -86,7 +88,7 @@ export class BackgroundPalette {
     }
   }
 
-  /** Closes the panel; `refocus` returns focus to the Background button. */
+  /** Closes the panel; `refocus` returns focus through the refocus callback (the Background button by default). */
   close(refocus: boolean): void {
     if (!this.panel) return;
     const doc = this.host.ownerDocument;
@@ -96,7 +98,7 @@ export class BackgroundPalette {
     this.panel = null;
     this.items = [];
     this.toggle.setAttribute("aria-expanded", "false");
-    if (refocus) this.toggle.focus();
+    if (refocus) this.refocus();
   }
 
   /** Moves the selection mark to the stored background, or to Plain when Home Cards does not offer it now. */

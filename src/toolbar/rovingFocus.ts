@@ -46,3 +46,22 @@ export class RovingTabStop {
     return this.buttons().filter((button) => button.offsetParent !== null);
   }
 }
+
+/**
+ * Where focus goes when the focused control leaves the bar. A control that moved
+ * into More hands focus to More, where it now lives. Otherwise focus goes to the
+ * nearest showing control in bar order, the one before it first, so it stays
+ * where the person was working. Null when nothing shows. Pure, so it is unit-tested.
+ */
+export function focusDestination<T>(
+  buttons: readonly T[],
+  from: T,
+  { isShown, movedToMore, more }: { isShown: (button: T) => boolean; movedToMore: (button: T) => boolean; more: T | null }
+): T | null {
+  if (more !== null && from !== more && movedToMore(from) && isShown(more)) return more;
+  const index = buttons.indexOf(from);
+  if (index < 0) return buttons.find(isShown) ?? null;
+  for (let i = index - 1; i >= 0; i--) if (isShown(buttons[i])) return buttons[i];
+  for (let i = index + 1; i < buttons.length; i++) if (isShown(buttons[i])) return buttons[i];
+  return null;
+}

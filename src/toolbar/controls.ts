@@ -40,29 +40,63 @@ export interface NavigationControl {
   overflowRank: number;
 }
 
-/** A control at the trailing end of the bar, which never moves into More. */
+/** A control at the trailing end of the bar, after More. */
 export interface TrailingControl {
   id: "background" | "properties";
   label: string;
   icon: IconChoice;
+  /** When the control moves into More as the pane narrows: lowest leaves first. */
+  overflowRank: number;
   /** When the control shows beyond the user's choice, for the settings tab. */
   note?: string;
 }
 
+/**
+ * The overflow policy in one place (proposed, REVIEW-2026-11-12 R3). As a pane
+ * narrows, controls leave for More in this order, lowest first:
+ * Background (rarely changed, and shared by every pane); then Insert image, Table
+ * and Highlight; then everything the user or other plugins added, right to left;
+ * then Insert link, Lists and blocks, Headings, Italic and Bold; then Forward and
+ * Back; and Properties last, only at the narrowest widths. More itself never leaves
+ * while it holds anything.
+ */
+export const OVERFLOW_RANK = {
+  background: 10,
+  image: 20,
+  table: 21,
+  highlight: 22,
+  /** Added controls take ranks from here up to (not including) ADDED_END, rightmost lowest. */
+  added: 30,
+  addedEnd: 31,
+  link: 40,
+  lists: 41,
+  headings: 42,
+  italic: 43,
+  bold: 44,
+  forward: 50,
+  back: 51,
+  properties: 60,
+} as const;
+
+/** The rank of the added control at `index` of `count`, left to right: the rightmost leaves first. */
+export function addedRank(index: number, count: number): number {
+  return OVERFLOW_RANK.added + (count - 1 - index) / Math.max(count, 1);
+}
+
 export const NAVIGATION_CONTROLS: readonly NavigationControl[] = [
-  { id: "back", label: "Back", icon: ["arrow-left"], command: "app:go-back", overflowRank: 20 },
-  { id: "forward", label: "Forward", icon: ["arrow-right"], command: "app:go-forward", overflowRank: 19 },
+  { id: "back", label: "Back", icon: ["arrow-left"], command: "app:go-back", overflowRank: OVERFLOW_RANK.back },
+  { id: "forward", label: "Forward", icon: ["arrow-right"], command: "app:go-forward", overflowRank: OVERFLOW_RANK.forward },
 ];
 
 export const EDITING_CONTROLS: readonly EditingControl[] = [
-  { id: "headings", label: "Headings", icon: ["heading"], group: 0, overflowRank: 6, menu: "headings" },
-  { id: "lists", label: "Lists and blocks", icon: ["list"], group: 0, overflowRank: 5, menu: "blocks" },
-  { id: "bold", label: "Bold", icon: ["bold"], group: 1, overflowRank: 8, command: "editor:toggle-bold" },
-  { id: "italic", label: "Italic", icon: ["italic"], group: 1, overflowRank: 7, command: "editor:toggle-italics" },
-  { id: "highlight", label: "Highlight", icon: ["highlighter", "paintbrush"], group: 1, overflowRank: 4, menu: "highlight" },
-  { id: "link", label: "Insert link", icon: ["link-2", "link"], group: 2, overflowRank: 3, command: "editor:insert-link" },
-  { id: "table", label: "Table", icon: ["table", "grid-3x3"], group: 2, overflowRank: 2, menu: "table" },
-  { id: "image", label: "Insert image", icon: ["image-plus", "image"], group: 2, overflowRank: 1, command: "editor:attach-file" },
+  { id: "headings", label: "Headings", icon: ["heading"], group: 0, overflowRank: OVERFLOW_RANK.headings, menu: "headings" },
+  { id: "lists", label: "Lists and blocks", icon: ["list"], group: 0, overflowRank: OVERFLOW_RANK.lists, menu: "blocks" },
+  { id: "bold", label: "Bold", icon: ["bold"], group: 1, overflowRank: OVERFLOW_RANK.bold, command: "editor:toggle-bold" },
+  { id: "italic", label: "Italic", icon: ["italic"], group: 1, overflowRank: OVERFLOW_RANK.italic, command: "editor:toggle-italics" },
+  { id: "highlight", label: "Highlight", icon: ["highlighter", "paintbrush"], group: 1, overflowRank: OVERFLOW_RANK.highlight, menu: "highlight" },
+  { id: "link", label: "Insert link", icon: ["link-2", "link"], group: 2, overflowRank: OVERFLOW_RANK.link, command: "editor:insert-link" },
+  { id: "table", label: "Table", icon: ["table", "grid-3x3"], group: 2, overflowRank: OVERFLOW_RANK.table, menu: "table" },
+  { id: "image", label: "Insert image", icon: ["image-plus", "image"], group: 2, overflowRank: OVERFLOW_RANK.image, command: "editor:attach-file" },
 ];
 
 /** The trailing controls, in bar order after More. */
@@ -71,9 +105,10 @@ export const TRAILING_CONTROLS: readonly TrailingControl[] = [
     id: "background",
     label: "Background",
     icon: ["swatch-book", "palette"],
+    overflowRank: OVERFLOW_RANK.background,
     note: "Shows on paginated notes while Home Cards is installed, which lends the patterns.",
   },
-  { id: "properties", label: "Properties", icon: ["info"] },
+  { id: "properties", label: "Properties", icon: ["info"], overflowRank: OVERFLOW_RANK.properties },
 ];
 
 /** Every built-in control the user can hide, in toolbar order, for the settings tab. */

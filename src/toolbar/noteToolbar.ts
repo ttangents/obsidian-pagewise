@@ -5,14 +5,14 @@ import { menuIsEmpty, navigationDepth } from "../obsidianInternals";
 import type { CommandButton } from "../settings";
 import { markdownViews } from "../workspace";
 import { DOM } from "../obsidianDom";
-import { editingGroups, NAVIGATION_CONTROLS, resolveControl, TRAILING_CONTROLS, type ControlMenu } from "./controls";
+import { addedRank, editingGroups, NAVIGATION_CONTROLS, resolveControl, TRAILING_CONTROLS, type ControlMenu } from "./controls";
 import { fillBlocksMenu, fillHeadingMenu, fillHighlightMenu } from "./formatMenus";
 import { registerCustomIcons, resolveIcon, type IconChoice } from "./icons";
 import { HEADING_LEVELS } from "./markdownActions";
 import { BackgroundPalette } from "./backgroundPalette";
 import { addEntry, createMenu, whenHidden, type CommandRunner } from "./menus";
 import { DISABLED_CLASS, fitToWidth, OVERFLOWED_CLASS, UNAVAILABLE_CLASS } from "./overflow";
-import { RovingTabStop } from "./rovingFocus";
+import { focusDestination, RovingTabStop } from "./rovingFocus";
 import { fillTableMenu } from "./tableMenu";
 import { badgeLabel, paintBadge } from "./badge";
 import { normalizeBadge, type PagewiseToolbarBadge, type PagewiseToolbarContext, type PagewiseToolbarItem } from "./extensionApi";
@@ -83,8 +83,12 @@ interface Control {
   badge?: () => PagewiseToolbarBadge | null;
 }
 
-/** Built-in formatting groups need an editor, so Reading view hides them. */
-type GroupKind = "navigation" | "editing" | "commands" | "extensions";
+/**
+ * Built-in formatting groups need an editor, so Reading view hides them. "added"
+ * holds the user's command buttons and then other plugins' items in one group:
+ * where a control came from is no reason to set it apart on the bar.
+ */
+type GroupKind = "navigation" | "editing" | "added";
 
 /**
  * The bar's sections, left to right, which a thin divider sets apart: moving through
@@ -94,14 +98,14 @@ type GroupKind = "navigation" | "editing" | "commands" | "extensions";
 const SECTION_OF: Record<GroupKind, string> = {
   navigation: "navigation",
   editing: "formatting",
-  commands: "added",
-  extensions: "added",
+  added: "added",
 };
 
 interface Placed {
   control: Control;
   button: HTMLElement;
-  group: HTMLElement;
+  /** Null for the trailing controls, which sit after More rather than in a group. */
+  group: HTMLElement | null;
 }
 
 /**
@@ -135,9 +139,16 @@ export class NoteToolbar {
 
   /** Builds every bar afresh, after the settings or the registered extension items changed. */
   rebuild(): void {
-    this.panes.forEach((pane) => pane.destroy());
+    // A partner loading or unloading rebuilds every bar; the control that had focus keeps it.
+    const focused = new Map<MarkdownView, string>();
+    this.panes.forEach((pane, view) => {
+      const id = pane.focusedControlId();
+      if (id !== null) focused.set(view, id);
+      pane.destroy();
+    });
     this.panes.clear();
     this.sync(this.shouldShow);
+    focused.forEach((id, view) => this.panes.get(view)?.focusControl(id));
   }
 
   /** Gives each open Markdown pane a toolbar exactly when the predicate says so. */
@@ -175,6 +186,7 @@ export class NoteToolbar {
 class PaneToolbar {
   private readonly el: HTMLElement;
   private readonly groupsEl: HTMLElement;
+  private readonly trailingEl: HTMLElement;
   private readonly moreButton: HTMLElement;
   private readonly propertiesButton: HTMLElement;
   private readonly palette: BackgroundPalette;
@@ -188,6 +200,11 @@ class PaneToolbar {
   private moreKeyboard = false;
   /** Whether the bar shows Back or Forward, so Obsidian's own pair can give way. */
   private readonly showsNavigation: boolean;
+  /**
+   * A bar button that lost focus because it stopped showing (the browser moves focus
+   * to the body without a destination). The next fit hands focus on from it.
+   */
+  private blurredByHiding: HTMLElement | null = null;
 
   constructor(
     private readonly app: App,
@@ -203,7 +220,15 @@ class PaneToolbar {
     // A pointer press on the bar must not take focus or the selection from the editor.
     this.el.addEventListener("mousedown", (event) => event.preventDefault());
     this.el.addEventListener("keydown", (event) => this.tabStop.onKeydown(event));
-    this.el.addEventListener("focusin", (event) => this.tabStop.set(event.target));
+    this.el.addEventListener("focusin", (event) => {
+      this.blurredByHiding = null;
+      this.tabStop.set(event.target);
+    });
+    this.el.addEventListener("focusout", (event) => {
+      const target = event.target as HTMLElement;
+      const hidden = !target.isConnected || target.offsetParent === null;
+      this.blurredByHiding = event.relatedTarget === null && hidden && target.matches(`.${BUTTON_CLASS}`) ? target : null;
+    });
     // Backstop for another plugin whose state changed without a refreshToolbar call.
     this.el.addEventListener("pointerenter", () => this.refreshState());
     this.el.addEventListener("contextmenu", (event) => this.showCustomizeMenu(event));
@@ -232,11 +257,12 @@ class PaneToolbar {
     this.showsNavigation = sections.has("navigation");
 
     const trailing = this.el.createDiv({ cls: "pagewise-toolbar-trailing" });
+    this.trailingEl = trailing;
     this.moreButton = this.menuButton("More tools", ["ellipsis", "more-horizontal"], (menu) => this.fillMore(menu), false);
     this.moreButton.classList.add("pagewise-toolbar-more", OVERFLOWED_CLASS);
     trailing.append(this.moreButton);
     const trailingButtons = new Map(
-      TRAILING_CONTROLS.map(({ id, label, icon }) => {
+      TRAILING_CONTROLS.map(({ id, label, icon, overflowRank }) => {
         const press = id === "properties" ? (keyboard: boolean) => void this.toggleProperties(keyboard) : () => this.togglePalette();
         const button = this.button(label, press);
         button.classList.add(`pagewise-toolbar-${id}`);
@@ -244,7 +270,14 @@ class PaneToolbar {
         // Background shows only while Home Cards is installed, which lends the patterns (D29).
         const unavailable = id === "background" && actions.backgrounds().status === "absent";
         if (config.hidden.has(id) || unavailable) button.detach();
-        else trailing.append(button);
+        else {
+          trailing.append(button);
+          const control: Control =
+            id === "properties"
+              ? { id, label, icon, overflowRank, run: () => void this.toggleProperties(this.moreKeyboard), isActive: () => this.actions.propertiesShown(this.view) }
+              : { id, label, icon, overflowRank, run: () => this.togglePalette() };
+          this.placed.push({ control, button, group: null });
+        }
         return [id, button] as const;
       })
     );
@@ -253,11 +286,17 @@ class PaneToolbar {
     const backgroundButton = trailingButtons.get("background")!;
     backgroundButton.setAttribute("aria-haspopup", "dialog");
     backgroundButton.setAttribute("aria-expanded", "false");
-    this.palette = new BackgroundPalette(this.el, backgroundButton, {
-      current: () => this.actions.background(),
-      choose: (id) => this.actions.setBackground(id),
-      offered: () => this.actions.backgrounds(),
-    });
+    this.palette = new BackgroundPalette(
+      this.el,
+      backgroundButton,
+      {
+        current: () => this.actions.background(),
+        choose: (id) => this.actions.setBackground(id),
+        offered: () => this.actions.backgrounds(),
+      },
+      // Opened from More, the palette returns focus to More, since Background is not on the bar.
+      () => this.focusShowing(backgroundButton)
+    );
 
     this.attach();
     this.tabStop.set(this.placed[0]?.button ?? this.propertiesButton);
@@ -327,14 +366,14 @@ class PaneToolbar {
 
   /**
    * The controls, grouped by purpose: Back and Forward, then block formats, inline
-   * formats and insertions (built in), then the user's command buttons, then items
-   * other plugins added. The added groups leave for More first, right to left, then
-   * the built-in ranks; Back and Forward leave last.
+   * formats and insertions (built in), then what the user and other plugins added.
+   * The order they leave for More in is OVERFLOW_RANK in controls.ts.
    */
   private controlGroups(): { kind: GroupKind; controls: Control[] }[] {
     const { actions, view } = this;
     const commands = this.config.commandButtons;
     const extensions = this.registry.items();
+    const added = commands.length + extensions.length;
     const editing = editingGroups().map((group) => ({
       kind: "editing" as const,
       controls: group.map((control): Control => {
@@ -367,12 +406,11 @@ class PaneToolbar {
       navigation,
       ...editing,
       {
-        kind: "commands",
-        controls: commands.map((button, index) => this.commandControl(button, -1000 + (commands.length - 1 - index))),
-      },
-      {
-        kind: "extensions",
-        controls: extensions.map((item, index) => this.extensionControl(item, -2000 + (extensions.length - 1 - index))),
+        kind: "added",
+        controls: [
+          ...commands.map((button, index) => this.commandControl(button, addedRank(index, added))),
+          ...extensions.map((item, index) => this.extensionControl(item, addedRank(commands.length + index, added))),
+        ],
       },
     ];
   }
@@ -424,15 +462,84 @@ class PaneToolbar {
     menu.showAtMouseEvent(event);
   }
 
-  /** Moves controls into More until the rest fit, then keeps the bar reachable by Tab. */
+  /**
+   * Moves controls into More until the rest fit, then keeps the bar reachable by Tab.
+   * The browser drops focus from a button the moment it stops showing, so the
+   * focused control is read before the fit and focus handed on after it.
+   */
   private fit(): void {
+    const focused = this.focusedButton();
     this.updateControls();
     fitToWidth(
-      this.groupsEl,
-      this.placed.map(({ control, button, group }) => ({ button, group, overflowRank: control.overflowRank })),
-      this.moreButton
+      { bar: this.el, groups: this.groupsEl, trailing: this.trailingEl, more: this.moreButton },
+      this.placed.map(({ control, button, group }) => ({ button, group, overflowRank: control.overflowRank }))
     );
+    // A menu whose button just left the bar closes; its hide handler returns focus.
+    if (this.openMenu && !shows(this.openMenu.button)) this.openMenu.menu.hide();
+    if (focused && !shows(focused)) this.handOnFocus(focused);
+    this.blurredByHiding = null;
     this.tabStop.ensure();
+  }
+
+  /** The bar button that has focus, or that just lost it by ceasing to show; null when focus is elsewhere. */
+  private focusedButton(): HTMLElement | null {
+    const active = this.el.ownerDocument.activeElement;
+    // instanceOf checks against the pane's own window, which differs in a pop-out.
+    if (active?.instanceOf(HTMLElement) && this.el.contains(active) && active.matches(`.${BUTTON_CLASS}`)) return active;
+    return this.focusIsNowhere() ? this.blurredByHiding : null;
+  }
+
+  /** True when focus sits on the body, as after the browser drops it from a hidden button. */
+  private focusIsNowhere(): boolean {
+    const active = this.el.ownerDocument.activeElement;
+    return active === null || active === this.el.ownerDocument.body;
+  }
+
+  /** Moves focus from a bar button that no longer shows to where focusDestination says. */
+  private handOnFocus(from: HTMLElement): void {
+    const active = this.el.ownerDocument.activeElement;
+    // Focus that already moved somewhere real (the editor, a modal) stays there.
+    if (active !== from && !this.focusIsNowhere()) return;
+    const destination = this.destination(from);
+    if (destination) {
+      this.tabStop.set(destination);
+      destination.focus();
+    } else {
+      this.focusNote();
+    }
+  }
+
+  private destination(from: HTMLElement): HTMLElement | null {
+    const buttons = Array.from(this.el.querySelectorAll<HTMLElement>(`.${BUTTON_CLASS}`));
+    return focusDestination(buttons, from, {
+      isShown: shows,
+      movedToMore: (button) => button.classList.contains(OVERFLOWED_CLASS),
+      more: this.moreButton,
+    });
+  }
+
+  /** Focuses the button when it shows, otherwise where its focus would be handed on. */
+  private focusShowing(button: HTMLElement): void {
+    const target = shows(button) ? button : this.destination(button);
+    if (target) {
+      this.tabStop.set(target);
+      target.focus();
+    }
+  }
+
+  /** The id of the control that has focus, for a rebuild to restore; null when focus is elsewhere. */
+  focusedControlId(): string | null {
+    const focused = this.focusedButton();
+    if (!focused) return null;
+    if (focused === this.moreButton) return "more";
+    return this.placed.find(({ button }) => button === focused)?.control.id ?? null;
+  }
+
+  /** Focuses a control by id after a rebuild: on the bar, in More, or the bar's tab stop if it is gone. */
+  focusControl(id: string): void {
+    const button = id === "more" ? this.moreButton : this.placed.find(({ control }) => control.id === id)?.button;
+    if (button) this.focusShowing(button);
+    else this.el.querySelector<HTMLElement>(`.${BUTTON_CLASS}[tabindex="0"]`)?.focus();
   }
 
   /** Hidden controls in their usual order, one menu section per group. */
@@ -444,7 +551,7 @@ class PaneToolbar {
       lastGroup = group;
       const action = control.fill
         ? // Opens the control's own menu once More has closed, at the same place.
-          () => this.el.win.setTimeout(() => this.showMenu(this.moreButton, control.fill!, this.moreKeyboard), 0)
+          () => this.el.win.setTimeout(() => this.showMenu(this.moreButton, control.fill!, this.moreKeyboard, button), 0)
         : () => {
             this.activatePane();
             control.run!();
@@ -459,7 +566,7 @@ class PaneToolbar {
     this.activatePane();
     await this.actions.toggleProperties(this.view);
     this.refreshState();
-    if (keyboard) this.propertiesButton.focus();
+    if (keyboard) this.focusShowing(this.propertiesButton);
   }
 
   private runCommand(run: () => void, keyboard: boolean): void {
@@ -493,7 +600,11 @@ class PaneToolbar {
     return !!active && this.view.contentEl.contains(active);
   }
 
-  private showMenu(button: HTMLElement, fill: (menu: Menu) => void, keyboard: boolean): void {
+  /**
+   * Opens a menu below its button. `origin` is the control whose menu it is, when
+   * More opened it on that control's behalf; focus returns there if it is back on the bar.
+   */
+  private showMenu(button: HTMLElement, fill: (menu: Menu) => void, keyboard: boolean, origin: HTMLElement = button): void {
     this.activatePane();
     const menu = createMenu();
     fill(menu);
@@ -507,17 +618,18 @@ class PaneToolbar {
       if (this.openMenu?.menu === menu) this.openMenu = null;
       // After the menu's own click handling, return focus where the user left it,
       // unless an action moved it on purpose (a modal, a picker, another menu).
-      this.el.win.setTimeout(() => this.restoreFocus(button, keyboard), 0);
+      this.el.win.setTimeout(() => this.restoreFocus(button, origin, keyboard), 0);
     });
     const rect = button.getBoundingClientRect();
     menu.showAtPosition({ x: rect.left, y: rect.bottom + 2 }, button.ownerDocument);
   }
 
-  private restoreFocus(button: HTMLElement, keyboard: boolean): void {
+  private restoreFocus(button: HTMLElement, origin: HTMLElement, keyboard: boolean): void {
     if (this.openMenu || !this.el.isConnected) return;
     const active = this.el.ownerDocument.activeElement;
     if (active?.closest(DOM.focusOwners)) return;
-    if (keyboard) button.focus();
+    // The menu's button may have left the bar while the menu was open.
+    if (keyboard) this.focusShowing(shows(button) || !shows(origin) ? button : origin);
     else if (!this.editorHasFocus()) this.focusNote();
   }
 
@@ -568,6 +680,11 @@ class PaneToolbar {
     });
     return button;
   }
+}
+
+/** True while the element takes part in layout: not hidden, overflowed or detached. */
+function shows(el: HTMLElement): boolean {
+  return el.isConnected && el.offsetParent !== null;
 }
 
 function iconSpan(owner: HTMLElement, className: string, icon: IconChoice): HTMLElement {

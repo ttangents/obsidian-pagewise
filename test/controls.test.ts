@@ -1,6 +1,6 @@
 import { test } from "vitest";
 import assert from "node:assert/strict";
-import { BUILT_IN_CONTROLS, EDITING_CONTROLS, NAVIGATION_CONTROLS, availableHighlights, editingGroups, resolveControl } from "../src/toolbar/controls";
+import { BUILT_IN_CONTROLS, EDITING_CONTROLS, NAVIGATION_CONTROLS, OVERFLOW_RANK, TRAILING_CONTROLS, addedRank, availableHighlights, editingGroups, resolveControl } from "../src/toolbar/controls";
 
 test("the settings list and the bar share one catalogue of built-in controls", () => {
   assert.deepEqual(
@@ -50,4 +50,40 @@ test("Highlight opens its menu where Obsidian has colours, and highlights in one
   const bold = EDITING_CONTROLS.find((control) => control.id === "bold");
   assert.ok(bold);
   assert.deepEqual(resolveControl(bold, () => false), { command: "editor:toggle-bold", menu: undefined });
+});
+
+test("controls leave for More in the proposed order: Background, rare inserts, added controls, writing tools, navigation, Properties", () => {
+  const ranks = new Map<string, number>([
+    ...EDITING_CONTROLS.map((control) => [control.id, control.overflowRank] as const),
+    ...NAVIGATION_CONTROLS.map((control) => [control.id, control.overflowRank] as const),
+    ...TRAILING_CONTROLS.map((control) => [control.id, control.overflowRank] as const),
+    ["added (leftmost of 3)", addedRank(0, 3)],
+    ["added (rightmost of 3)", addedRank(2, 3)],
+  ]);
+  const order = [...ranks.entries()].sort((a, b) => a[1] - b[1]).map(([id]) => id);
+  assert.deepEqual(order, [
+    "background",
+    "image",
+    "table",
+    "highlight",
+    "added (rightmost of 3)",
+    "added (leftmost of 3)",
+    "link",
+    "lists",
+    "headings",
+    "italic",
+    "bold",
+    "forward",
+    "back",
+    "properties",
+  ]);
+});
+
+test("added controls leave right to left and stay between the rare inserts and the writing tools, however many there are", () => {
+  for (const count of [1, 2, 20, 500]) {
+    const ranks = Array.from({ length: count }, (_, index) => addedRank(index, count));
+    ranks.slice(1).forEach((rank, i) => assert.ok(rank < ranks[i], `${count}: control ${i + 1} leaves before control ${i}`));
+    ranks.forEach((rank) => assert.ok(rank >= OVERFLOW_RANK.added && rank < OVERFLOW_RANK.addedEnd, `${count}: ${rank}`));
+  }
+  assert.ok(OVERFLOW_RANK.highlight < OVERFLOW_RANK.added && OVERFLOW_RANK.addedEnd <= OVERFLOW_RANK.link);
 });

@@ -199,6 +199,15 @@
 }
 
 .pagewise-toolbar {
+  /* The toolbar's whole spacing scale (REVIEW-2026-11-12 R1). Padding inside each
+   * button already puts 12px between neighbouring icons, so controls in a group sit
+   * 2px apart; groups take a clearly larger step; a divider takes the same space on
+   * either side of its line. */
+  --pagewise-toolbar-control: 28px;
+  --pagewise-toolbar-menu: 38px;
+  --pagewise-toolbar-gap-control: 2px;
+  --pagewise-toolbar-gap-group: 10px;
+  --pagewise-toolbar-gap-divider: 8px;
   display: flex;
   align-items: center;
   gap: var(--size-4-2);
@@ -211,41 +220,51 @@
 
 /* Sections (Back and Forward, formatting, what the user or other plugins added) are
  * set apart by a thin divider; groups within a section by space alone; controls
- * inside a group sit close. */
+ * inside a group sit close. The groups box takes the free width, so the trailing
+ * controls stay at the end and nothing spreads out as the pane widens. */
 .pagewise-toolbar-groups,
 .pagewise-toolbar-section {
   display: flex;
   align-items: center;
-  gap: var(--size-4-3);
   min-width: 0;
 }
 
 .pagewise-toolbar-groups {
   flex: 1 1 0;
+  gap: var(--pagewise-toolbar-gap-divider);
   overflow: hidden;
 }
 
 .pagewise-toolbar-section {
+  position: relative;
   flex: none;
+  gap: var(--pagewise-toolbar-gap-group);
 }
 
 /* A divider before every showing section that follows another showing one, so an
- * empty section (Reading view's formatting, say) never leaves a doubled line. */
+ * empty section (Reading view's formatting, say) never leaves a doubled line. The
+ * line sits in the section's own padding, out of the flex flow, so the space on
+ * either side of it is exactly the divider gap. A border, not a background, so it
+ * survives forced colours. */
+.pagewise-toolbar-section:not(.is-empty) ~ .pagewise-toolbar-section:not(.is-empty) {
+  padding-inline-start: calc(var(--divider-width, 1px) + var(--pagewise-toolbar-gap-divider));
+}
+
 .pagewise-toolbar-section:not(.is-empty) ~ .pagewise-toolbar-section:not(.is-empty)::before {
   content: "";
-  flex: none;
-  align-self: center;
-  width: var(--divider-width, 1px);
+  position: absolute;
+  inset-inline-start: 0;
+  top: 50%;
   height: 16px;
-  border-radius: 1px;
-  background-color: var(--divider-color, var(--background-modifier-border));
+  margin-top: -8px;
+  border-inline-start: var(--divider-width, 1px) solid var(--divider-color, var(--background-modifier-border));
 }
 
 .pagewise-toolbar-group,
 .pagewise-toolbar-trailing {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: var(--pagewise-toolbar-gap-control);
   flex: none;
 }
 
@@ -286,13 +305,18 @@
   height: var(--icon-size, 18px);
 }
 
+/* One shell for every control: 28px square for an action, a fixed 38px for a menu.
+ * The icon sits 6px from the left edge in both, so icons line up with the same
+ * inset whatever follows them, and the chevron takes the space to the right. */
 .pagewise-toolbar .pagewise-toolbar-button {
   display: inline-flex;
+  flex: none;
   align-items: center;
   justify-content: center;
   gap: 2px;
-  height: 28px;
-  min-width: 28px;
+  box-sizing: border-box;
+  width: var(--pagewise-toolbar-control);
+  height: var(--pagewise-toolbar-control);
   margin: 0;
   padding: 0 6px;
   background: none;
@@ -302,6 +326,12 @@
   color: var(--text-muted);
   opacity: 1;
   cursor: var(--cursor);
+}
+
+.pagewise-toolbar .pagewise-toolbar-button.has-menu {
+  justify-content: flex-start;
+  width: var(--pagewise-toolbar-menu);
+  padding: 0 4px 0 6px;
 }
 
 .pagewise-toolbar .pagewise-toolbar-button:hover {
@@ -332,7 +362,7 @@
 .pagewise-toolbar .pagewise-toolbar-button svg {
   width: 16px;
   height: 16px;
-  stroke-width: 1.75px;
+  stroke-width: var(--icon-stroke, 1.75px);
 }
 
 .pagewise-toolbar-icon,
@@ -344,10 +374,16 @@
   color: var(--text-faint);
 }
 
+.pagewise-toolbar .pagewise-toolbar-button:hover .pagewise-toolbar-chevron,
+.pagewise-toolbar .pagewise-toolbar-button[aria-expanded="true"] .pagewise-toolbar-chevron {
+  color: var(--text-muted);
+}
+
+/* The chevron's stroke matches the icons' drawn weight at its smaller size. */
 .pagewise-toolbar .pagewise-toolbar-chevron svg {
   width: 10px;
   height: 10px;
-  stroke-width: 2px;
+  stroke-width: 2.75px;
 }
 
 @media (forced-colors: active) {
@@ -403,13 +439,10 @@
   display: flex;
 }
 
-/* On a menu button the badge sits on the 16px icon beside the chevron; the ring circles it at 22px and keeps clear of the chevron. */
+/* On a menu button the badge sits on the 16px icon beside the chevron; the ring circles it at 22px.
+ * The chevron's drawn stroke starts 4.5px past the icon, so the ring clears it without moving anything. */
 .pagewise-toolbar .pagewise-toolbar-icon > .pagewise-toolbar-badge.is-progress {
   inset: -3px;
-}
-
-.pagewise-toolbar .pagewise-toolbar-icon.has-pagewise-progress {
-  margin-right: 2px;
 }
 
 .pagewise-toolbar .pagewise-toolbar-icon > .pagewise-toolbar-badge.is-dot {
