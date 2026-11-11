@@ -205,6 +205,8 @@ class PaneToolbar {
    * to the body without a destination). The next fit hands focus on from it.
    */
   private blurredByHiding: HTMLElement | null = null;
+  /** When blurredByHiding was set; it counts only for a fit that follows within a moment. */
+  private blurredAt = 0;
 
   constructor(
     private readonly app: App,
@@ -228,6 +230,7 @@ class PaneToolbar {
       const target = event.target as HTMLElement;
       const hidden = !target.isConnected || target.offsetParent === null;
       this.blurredByHiding = event.relatedTarget === null && hidden && target.matches(`.${BUTTON_CLASS}`) ? target : null;
+      this.blurredAt = event.timeStamp;
     });
     // Backstop for another plugin whose state changed without a refreshToolbar call.
     this.el.addEventListener("pointerenter", () => this.refreshState());
@@ -275,7 +278,15 @@ class PaneToolbar {
           const control: Control =
             id === "properties"
               ? { id, label, icon, overflowRank, run: () => void this.toggleProperties(this.moreKeyboard), isActive: () => this.actions.propertiesShown(this.view) }
-              : { id, label, icon, overflowRank, run: () => this.togglePalette() };
+              : {
+                  id,
+                  label,
+                  icon,
+                  overflowRank,
+                  run: () => this.togglePalette(),
+                  // The pattern paints only the paginated canvas, so Background shows only there.
+                  isAvailable: () => this.view.containerEl.classList.contains("pagewise-active"),
+                };
           this.placed.push({ control, button, group: null });
         }
         return [id, button] as const;
@@ -477,6 +488,8 @@ class PaneToolbar {
     // A menu whose button just left the bar closes; its hide handler returns focus.
     if (this.openMenu && !shows(this.openMenu.button)) this.openMenu.menu.hide();
     if (focused && !shows(focused)) this.handOnFocus(focused);
+    // More is hidden for a moment at the start of every fit; a browser that blurs it then gets focus back.
+    else if (focused && this.focusIsNowhere()) focused.focus({ preventScroll: true });
     this.blurredByHiding = null;
     this.tabStop.ensure();
   }
@@ -486,7 +499,9 @@ class PaneToolbar {
     const active = this.el.ownerDocument.activeElement;
     // instanceOf checks against the pane's own window, which differs in a pop-out.
     if (active?.instanceOf(HTMLElement) && this.el.contains(active) && active.matches(`.${BUTTON_CLASS}`)) return active;
-    return this.focusIsNowhere() ? this.blurredByHiding : null;
+    // A blur older than half a second was not caused by the change this fit answers.
+    const recent = this.el.win.performance.now() - this.blurredAt < 500;
+    return this.focusIsNowhere() && recent ? this.blurredByHiding : null;
   }
 
   /** True when focus sits on the body, as after the browser drops it from a hidden button. */
@@ -538,8 +553,13 @@ class PaneToolbar {
   /** Focuses a control by id after a rebuild: on the bar, in More, or the bar's tab stop if it is gone. */
   focusControl(id: string): void {
     const button = id === "more" ? this.moreButton : this.placed.find(({ control }) => control.id === id)?.button;
-    if (button) this.focusShowing(button);
-    else this.el.querySelector<HTMLElement>(`.${BUTTON_CLASS}[tabindex="0"]`)?.focus();
+    if (button) {
+      this.focusShowing(button);
+      return;
+    }
+    this.tabStop.ensure();
+    const stop = this.el.querySelector<HTMLElement>(`.${BUTTON_CLASS}[tabindex="0"]`);
+    if (stop) this.focusShowing(stop);
   }
 
   /** Hidden controls in their usual order, one menu section per group. */
@@ -547,6 +567,8 @@ class PaneToolbar {
     let lastGroup: HTMLElement | null = null;
     this.placed.forEach(({ control, button, group }) => {
       if (!button.classList.contains(OVERFLOWED_CLASS) || button.classList.contains(UNAVAILABLE_CLASS)) return;
+      // Availability can change between fits (a pane stops being paginated), so it is read again here.
+      if (control.isAvailable && !control.isAvailable()) return;
       if (lastGroup && lastGroup !== group) menu.addSeparator();
       lastGroup = group;
       const action = control.fill

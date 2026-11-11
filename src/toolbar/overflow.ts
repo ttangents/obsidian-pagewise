@@ -5,9 +5,13 @@
  * button is always either in its usual place or in More, never reshuffled.
  */
 
+/** On a control that moved into More, and on More while it holds nothing. */
 export const OVERFLOWED_CLASS = "is-overflowed";
+/** On a group or section with nothing showing, so it takes no space and draws no divider. */
 export const EMPTY_CLASS = "is-empty";
+/** On a control that does not apply on this pane now (a missing command, a hidden extension item). */
 export const UNAVAILABLE_CLASS = "is-unavailable";
+/** On a control shown dimmed that does nothing, such as Back with no history. */
 export const DISABLED_CLASS = "is-disabled";
 
 /** How far a box may pass its edge, in CSS pixels, before it counts as cut off: sub-pixel rounding only. */
@@ -62,6 +66,8 @@ export function fitToWidth(boxes: FitBoxes, items: readonly FitItem[]): void {
       markSections();
     }
   }
+  // More shows only when it holds something; with nothing able to leave, it stays hidden.
+  if (!items.some(({ button }) => button.classList.contains(OVERFLOWED_CLASS))) more.classList.add(OVERFLOWED_CLASS);
 }
 
 /**
