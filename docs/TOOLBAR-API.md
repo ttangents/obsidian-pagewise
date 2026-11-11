@@ -180,7 +180,7 @@ Pagewise keeps its own copy of each button, so editing your object afterward has
 
 ## Where your buttons appear
 
-Buttons from other plugins sit together in the toolbar's last section, after the reader's own command buttons, in the order your plugins registered them. They appear on every toolbar Pagewise shows: on paginated notes, or on all notes if the reader chose that. On a narrow pane they move into the More menu before any other control, the last one first. A toggle shows a check mark there.
+Buttons from other plugins sit together in the toolbar's last section, after the reader's own command buttons, in the order your plugins registered them. They appear on every toolbar Pagewise shows: on paginated notes, or on all notes if the reader chose that. On a narrow pane they move into the More menu together with the reader's command buttons, the last one first: after the rarely used Background, Insert image, Table and Highlight, and before the core writing tools and Back and Forward. A toggle shows a check mark there.
 
 Readers stay in charge. Settings → Pagewise → Added by other plugins lists your buttons by label, and the reader can switch any of them off.
 
