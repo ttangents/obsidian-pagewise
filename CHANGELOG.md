@@ -2,6 +2,24 @@
 
 What's new in each release of Pagewise. The newest release comes first.
 
+## 0.40.0
+
+A tidier document toolbar that behaves well as a pane narrows.
+
+### Improved
+
+- The toolbar's buttons are evenly spaced, with even gaps between groups and a divider centred in each gap.
+- Menu buttons, such as Headings and Table, show their arrow right beside the icon.
+- As a pane narrows, controls move into the More menu in a set order: Background first; then Insert image, Table and Highlight; then the command buttons you and other plugins added, the last one first; then the writing tools; then Back and Forward. Properties stays on the bar until the pane is very narrow.
+- A button is never left cut off at the edge of the bar.
+
+### Fixed
+
+- When a pane narrows while a toolbar button has keyboard focus, focus moves to the More menu or the nearest button instead of being lost.
+- An open toolbar menu closes when its button moves into More.
+- The page-progress ring no longer widens its button.
+- The Background button no longer shows in the More menu on a note that is not paginated.
+
 ## 0.39.2
 
 ### Fixed

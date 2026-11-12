@@ -1,7 +1,7 @@
 {
   "id": "pagewise",
   "name": "Pagewise",
-  "version": "0.39.2",
+  "version": "0.40.0",
   "minAppVersion": "1.13.1",
   "description": "Lay out your notes as word-processor pages, with page numbers and a handy document toolbar, in any theme.",
   "author": "ttangents",
